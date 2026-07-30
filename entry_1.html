@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>練習試合 参加申込</title>
+<style>
+:root{
+  --ink:#0F1C24; --paper:#F5F7F4; --card:#fff; --line:#D9E0D8;
+  --turf:#1D6F4A; --chalk:#F2C230; --dim:#5D6E75; --warn:#C4452B;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65}
+header{background:var(--ink);color:#fff;padding:22px 18px 18px}
+header .in{max-width:600px;margin:0 auto}
+h1{margin:0;font-size:21px;font-weight:800}
+.evt{margin-top:10px;font-size:14px;color:#C9DCD3;font-family:var(--mono);line-height:1.7}
+.rail{height:3px;background:repeating-linear-gradient(90deg,var(--chalk) 0 26px,transparent 26px 40px);margin-top:14px}
+.wrap{max-width:600px;margin:0 auto;padding:18px 14px 90px}
+.fld{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:12px 14px;margin-bottom:10px}
+.fld.req{border-left:3px solid var(--turf)}
+label{display:block;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px}
+label .n{color:var(--warn);font-size:11px;margin-left:5px}
+.help{font-size:12px;color:var(--dim);margin:0 0 7px;line-height:1.5}
+input,select,textarea{font-family:var(--sans);font-size:17px;padding:11px 10px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);width:100%}
+input[type=number],input[type=time]{font-family:var(--mono)}
+textarea{font-size:15px;min-height:70px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-offset:-1px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:7px 15px;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--mono)}
+.chip.on{background:var(--turf);border-color:var(--turf);color:#fff}
+.prev{background:var(--ink);color:#DCE8E2;font-family:var(--mono);font-size:12.5px;padding:12px;border-radius:4px;white-space:pre-wrap;word-break:break-all;line-height:1.6;margin-top:4px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:9px;justify-content:center;box-shadow:0 -2px 10px rgba(0,0,0,.05)}
+.btn{font-family:var(--sans);font-weight:800;font-size:16px;padding:13px 18px;border-radius:4px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;flex:1;max-width:230px}
+.btn.go{background:var(--turf);border-color:var(--turf);color:#fff}
+.btn:disabled{opacity:.45}
+h2{font-size:13px;font-weight:800;color:var(--turf);letter-spacing:.06em;margin:22px 0 8px}
+.note{font-size:12.5px;color:var(--dim);margin-top:8px;line-height:1.6}
+.err{color:var(--warn);font-size:13px;font-weight:700;margin-top:6px}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <h1>練習試合 参加申込</h1>
+  <div class="evt" id="evt"></div>
+  <div class="rail"></div>
+</div></header>
+
+<div class="wrap">
+
+<div class="fld req">
+  <label>チーム名<span class="n">必須</span></label>
+  <p class="help">大会で使う正式な表記でお願いします（例：八ヶ岳グランデFC U15）</p>
+  <input id="f_name" placeholder="○○FC U15" autocomplete="organization">
+</div>
+
+<div class="fld req">
+  <label>カテゴリー<span class="n">必須</span></label>
+  <p class="help">複数カテゴリーで参加する場合は、カテゴリーごとに1回ずつ送ってください。</p>
+  <select id="f_cat">
+    <option value="U18">U18</option><option value="U17">U17</option><option value="U16">U16</option>
+    <option value="U15" selected>U15</option><option value="U14">U14</option><option value="U13">U13</option>
+    <option value="U12">U12</option><option value="U11">U11</option><option value="U10">U10</option>
+    <option value="U9">U9</option><option value="U8">U8</option>
+  </select>
+</div>
+
+<div class="fld req">
+  <label>参加人数<span class="n">必須</span></label>
+  <p class="help">当日ピッチに立てる選手の人数（GK含む）。仮の人数でも構いません。</p>
+  <input type="number" id="f_num" value="15" min="1" max="40" inputmode="numeric">
+</div>
+
+<div class="fld req">
+  <label>来場時刻 / 撤収時刻<span class="n">必須</span></label>
+  <p class="help">この時間帯の中で試合を組みます。移動を含めて余裕のある時間でお願いします。</p>
+  <div class="two">
+    <div><span class="help">来場（試合可能になる時刻）</span><input type="time" id="f_from" value="08:30"></div>
+    <div><span class="help">撤収（この時刻までに終了）</span><input type="time" id="f_to" value="12:30"></div>
+  </div>
+</div>
+
+<div class="fld req">
+  <label>希望試合本数<span class="n">必須</span></label>
+  <p class="help" id="tgtHelp">1本＝主催者が指定する試合時間です。</p>
+  <div class="chips" id="tgtChips"></div>
+</div>
+
+<h2>できれば教えてください</h2>
+
+<div class="fld">
+  <label>帯同審判</label>
+  <p class="help">主審・副審ができる方の人数。0でも参加できます。</p>
+  <div class="chips" id="refChips"></div>
+</div>
+
+<div class="fld">
+  <label>責任者名 / 連絡先</label>
+  <div class="two">
+    <input id="f_person" placeholder="監督・引率者名">
+    <input id="f_tel" placeholder="携帯番号" inputmode="tel">
+  </div>
+</div>
+
+<div class="fld">
+  <label>備考</label>
+  <p class="help">対戦したいカテゴリー、GK不在、到着が遅れる可能性、その他の要望など。</p>
+  <textarea id="f_memo" placeholder="例）GKが不在なので貸していただけると助かります／U14との対戦希望"></textarea>
+</div>
+
+<h2>送信内容</h2>
+<div class="prev" id="prev"></div>
+<p class="note">下のボタンでこの1行をLINEに送るか、コピーして主催者に送ってください。この行のまま送っていただくと、そのまま組み合わせ表に取り込めます。</p>
+<div class="err" id="err"></div>
+
+</div>
+
+<div class="bar">
+  <button class="btn go" id="btnLine" onclick="send()">LINEで送る</button>
+  <button class="btn" onclick="copyIt()">コピー</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const q=new URLSearchParams(location.search);
+let TGT=3,REF=0;
+
+/* イベント情報（管理画面が付ける ?d=&v=&t=&m=&i=&s=&e= ） */
+(function(){
+  const d=q.get('d'),v=q.get('v'),t=q.get('t'),m=q.get('m'),i=q.get('i'),s=q.get('s'),e=q.get('e');
+  const L=[];
+  if(d){const p=d.split('-');L.push(p[1]*1+'月'+p[2]*1+'日'+(t?'  '+t:''));}
+  else if(t)L.push(t);
+  if(v)L.push('会場：'+v);
+  if(m)L.push('試合時間：'+m+'分1本'+(i?'・'+i+'分まわし':''));
+  if(s&&e)L.push('開催時間：'+s+'〜'+e);
+  $('evt').textContent=L.join('\n')||'日程は主催者からの案内をご確認ください';
+  if(s)$('f_from').value=s;
+  if(e)$('f_to').value=e;
+  if(m)$('tgtHelp').textContent='1本＝'+m+'分'+(i?'（'+i+'分間隔で回します）':'')+'。';
+})();
+
+/* チップ */
+function chips(box,vals,cur,set){
+  $(box).innerHTML=vals.map(v=>'<button class="chip'+(v===cur?' on':'')+'" data-v="'+v+'">'+v+(box==='tgtChips'?'本':'人')+'</button>').join('');
+  $(box).querySelectorAll('.chip').forEach(b=>b.onclick=()=>{set(+b.dataset.v);});
+}
+function drawTgt(){chips('tgtChips',[1,2,3,4,5,6],TGT,v=>{TGT=v;drawTgt();prev();});}
+function drawRef(){chips('refChips',[0,1,2,3],REF,v=>{REF=v;drawRef();prev();});}
+drawTgt();drawRef();
+
+const clean=s=>String(s||'').replace(/[|｜\r\n]+/g,' ').trim();
+function line(){
+  return '[申込] '+[clean($('f_name').value)||'（未記入）',$('f_cat').value,$('f_num').value,
+    $('f_from').value,$('f_to').value,TGT,'審判'+REF,
+    clean($('f_person').value),clean($('f_tel').value),clean($('f_memo').value)].join('|');
+}
+function prev(){
+  $('prev').textContent=line();
+  const ok=!!clean($('f_name').value)&&$('f_from').value<$('f_to').value;
+  $('err').textContent=!clean($('f_name').value)?'チーム名を入力してください':
+    ($('f_from').value>=$('f_to').value?'撤収時刻は来場時刻より後にしてください':'');
+  $('btnLine').disabled=!ok;
+}
+document.querySelectorAll('input,select,textarea').forEach(el=>el.addEventListener('input',prev));
+prev();
+
+function send(){
+  const t=line();
+  if(navigator.share){navigator.share({text:t}).catch(()=>{});return;}
+  location.href='https://line.me/R/share?text='+encodeURIComponent(t);
+}
+function copyIt(){
+  const t=line();
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>alert('コピーしました。LINEなどで主催者に送ってください。'),()=>fallback(t));
+  else fallback(t);
+}
+function fallback(t){prompt('長押しでコピーしてください',t);}
+</script>
+</body>
+</html>
