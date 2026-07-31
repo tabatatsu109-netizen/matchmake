@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>練習試合 参加申込</title>
+<style>
+:root{
+  --ink:#0F1C24; --paper:#F5F7F4; --card:#fff; --line:#D9E0D8;
+  --turf:#1D6F4A; --chalk:#F2C230; --dim:#5D6E75; --warn:#C4452B;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65}
+header{background:var(--ink);color:#fff;padding:20px 18px 16px}
+header .in{max-width:620px;margin:0 auto}
+.htop{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+h1{margin:0;font-size:21px;font-weight:800}
+.hlink{color:#C9DCD3;font-size:12px;font-weight:700;text-decoration:none;border:1px solid #35474F;border-radius:3px;padding:7px 11px;white-space:nowrap;flex:0 0 auto}
+.evt{margin-top:9px;font-size:13.5px;color:#C9DCD3;font-family:var(--mono);line-height:1.75;white-space:pre-line}
+.rail{height:3px;background:repeating-linear-gradient(90deg,var(--chalk) 0 26px,transparent 26px 40px);margin-top:13px}
+.wrap{max-width:620px;margin:0 auto;padding:18px 14px 96px}
+.step{display:flex;align-items:center;gap:9px;margin:22px 0 9px}
+.step i{background:var(--turf);color:#fff;font-style:normal;font-weight:800;font-size:13px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.step b{font-size:15px;font-weight:800}
+.step span{font-size:12px;color:var(--dim);font-weight:600}
+.fld{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:13px 14px;margin-bottom:10px}
+label{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.help{font-size:12.5px;color:var(--dim);margin:0 0 8px;line-height:1.55}
+input,select,textarea{font-family:var(--sans);font-size:17px;padding:11px 10px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);width:100%}
+input[type=number],input[type=time]{font-family:var(--mono)}
+textarea{font-size:15px;min-height:64px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-offset:-1px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:8px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--mono);color:var(--ink)}
+.chip.on{background:var(--turf);border-color:var(--turf);color:#fff}
+/* カテゴリーカード */
+.ent{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--turf);border-radius:5px;padding:13px 14px;margin-bottom:10px;position:relative}
+.ent .del{position:absolute;top:9px;right:9px;border:1px solid var(--line);background:#fff;color:var(--warn);font-size:11px;font-weight:700;border-radius:3px;padding:4px 9px;cursor:pointer;width:auto}
+.ent .sub{font-size:12px;font-weight:700;color:var(--dim);margin:12px 0 4px}
+.made{background:#EFF6F1;border:1px solid #C6DFCF;border-radius:4px;padding:9px 11px;margin-top:12px;font-size:14px;line-height:1.7}
+.made b{font-family:var(--mono);font-size:14.5px}
+.made .cap{display:block;font-size:11px;color:var(--dim);font-weight:700;margin-bottom:2px}
+.add{width:100%;border:1px dashed var(--turf);background:#fff;color:var(--turf);font-weight:800;font-size:15px;padding:12px;border-radius:5px;cursor:pointer;font-family:var(--sans)}
+.prev{background:var(--ink);color:#DCE8E2;font-family:var(--mono);font-size:12px;padding:12px;border-radius:4px;white-space:pre-wrap;word-break:break-all;line-height:1.75}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:9px;justify-content:center;box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.btn{font-family:var(--sans);font-weight:800;font-size:16px;padding:13px 18px;border-radius:4px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;flex:1;max-width:230px}
+.btn.go{background:var(--turf);border-color:var(--turf);color:#fff}
+.btn:disabled{opacity:.45}
+.note{font-size:12.5px;color:var(--dim);margin-top:9px;line-height:1.6}
+.err{color:var(--warn);font-size:13.5px;font-weight:700;margin-top:8px}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div class="htop">
+    <h1>練習試合 参加申込</h1>
+    <a class="hlink" href="index.html">主催者用ページ →</a>
+  </div>
+  <div class="evt" id="evt"></div>
+  <div class="rail"></div>
+</div></header>
+
+<div class="wrap">
+
+<div class="step"><i>1</i><b>クラブ名</b></div>
+<div class="fld">
+  <p class="help">カテゴリー（U15など）は付けずに、クラブ名だけ入れてください。チーム名は自動で組み立てます。</p>
+  <input id="f_club" placeholder="例）八ヶ岳グランデFC" autocomplete="organization">
+</div>
+
+<div class="step"><i>2</i><b>参加するカテゴリーとチーム数</b></div>
+<div id="ents"></div>
+<button class="add" onclick="addEnt()">＋ カテゴリーを追加（U13も出す場合など）</button>
+
+<div class="step"><i>3</i><b>参加できる時間</b><span>キックオフの時刻で答えてください</span></div>
+<div class="fld">
+  <div class="two">
+    <div>
+      <label>1試合目のKO</label>
+      <p class="help">この時刻より前には組みません</p>
+      <input type="time" id="f_from" value="08:30">
+    </div>
+    <div>
+      <label>最終試合のKO</label>
+      <p class="help">この時刻より後には組みません</p>
+      <input type="time" id="f_to" value="12:00">
+    </div>
+  </div>
+  <p class="note">最終試合のKOなので、終了はこの時刻＋試合時間になります。移動や片付けを考えて余裕をみてください。</p>
+</div>
+
+<div class="step"><i>4</i><b>連絡先</b><span>任意</span></div>
+<div class="fld">
+  <div class="two">
+    <input id="f_person" placeholder="責任者名">
+    <input id="f_tel" placeholder="携帯番号" inputmode="tel">
+  </div>
+</div>
+<div class="fld">
+  <label>備考</label>
+  <p class="help">GK不在、到着が遅れる可能性、対戦したいカテゴリーなど。</p>
+  <textarea id="f_memo" placeholder="例）GKが不在です／U14との対戦希望"></textarea>
+</div>
+
+<div class="step"><i>5</i><b>送信内容</b></div>
+<div class="prev" id="prev"></div>
+<p class="note">下のボタンでこのまま主催者に送ってください。この形のまま送っていただくと、そのまま組み合わせ表に取り込めます。</p>
+<div class="err" id="err"></div>
+</div>
+
+<div class="bar">
+  <button class="btn go" id="btnLine" onclick="send()">LINEで送る</button>
+  <button class="btn" onclick="copyIt()">コピー</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const q=new URLSearchParams(location.search);
+const CATS=['U18','U17','U16','U15','U14','U13','U12','U11','U10','U9','U8'];
+let ENTS=[{cat:'U15',teams:1,players:15,target:3}];
+
+/* 開催情報（主催者ページが付ける ?d=&v=&t=&m=&i=&s=&e=） */
+(function(){
+  const d=q.get('d'),v=q.get('v'),t=q.get('t'),m=q.get('m'),i=q.get('i'),s=q.get('s'),e=q.get('e');
+  const L=[];
+  if(d){const p=d.split('-');L.push((+p[1])+'月'+(+p[2])+'日'+(t?'  '+t:''));}else if(t)L.push(t);
+  if(v)L.push('会場：'+v);
+  if(m)L.push('試合：'+m+'分1本'+(i?'・'+i+'分まわし':''));
+  if(s&&e)L.push('KO可能時間：'+s+'〜'+e);
+  $('evt').textContent=L.join('\n')||'日程は主催者からの案内をご確認ください';
+  if(s)$('f_from').value=s;
+  if(e)$('f_to').value=e;
+  if(m)MIN=m;
+})();
+let MIN=null;
+
+const clean=s=>String(s||'').replace(/[|｜\r\n]+/g,' ').trim();
+function teamNames(e){
+  const c=clean($('f_club').value)||'（クラブ名）';
+  if(e.teams<=1)return [c+e.cat];
+  return Array.from({length:e.teams},(_,i)=>c+e.cat+'ABC'[i]);
+}
+const perTeam=e=>Math.max(1,Math.round(e.players/e.teams));
+
+function drawEnts(){
+  $('ents').innerHTML=ENTS.map(function(e,k){
+    const ns=teamNames(e);
+    return '<div class="ent">'+
+      (ENTS.length>1?'<button class="del" onclick="delEnt('+k+')">削除</button>':'')+
+      '<label>カテゴリー</label>'+
+      '<select onchange="setE('+k+',\'cat\',this.value)">'+CATS.map(c=>'<option'+(c===e.cat?' selected':'')+'>'+c+'</option>').join('')+'</select>'+
+      '<div class="sub">チーム数</div>'+
+      '<div class="chips">'+[1,2,3].map(v=>'<button class="chip'+(v===e.teams?' on':'')+'" onclick="setE('+k+',\'teams\','+v+')">'+v+'チーム</button>').join('')+'</div>'+
+      '<div class="sub">選手の合計人数</div>'+
+      '<input type="number" min="1" max="90" inputmode="numeric" value="'+e.players+'" onchange="setE('+k+',\'players\',this.value)">'+
+      '<div class="sub">希望試合本数（1チームあたり）</div>'+
+      '<div class="chips">'+[1,2,3,4,5,6].map(v=>'<button class="chip'+(v===e.target?' on':'')+'" onclick="setE('+k+',\'target\','+v+')">'+v+'本</button>').join('')+'</div>'+
+      '<div class="made"><span class="cap">この内容で申し込みます</span>'+
+        ns.map(n=>'<b>'+n+'</b>').join(' ／ ')+'<br>'+
+        '各'+perTeam(e)+'名・各'+e.target+'本'+(e.teams>1?'（'+e.teams+'チーム合計'+(e.target*e.teams)+'本）':'')+'</div>'+
+    '</div>';
+  }).join('');
+}
+function setE(k,key,val){
+  ENTS[k][key]=(key==='cat')?val:(parseInt(val,10)||1);
+  if(key==='teams'&&ENTS[k].players<ENTS[k].teams)ENTS[k].players=ENTS[k].teams*11;
+  drawEnts();prev();
+}
+function addEnt(){
+  const last=ENTS[ENTS.length-1];
+  const i=Math.min(CATS.indexOf(last.cat)+1,CATS.length-1);
+  ENTS.push({cat:CATS[i],teams:1,players:15,target:last.target});
+  drawEnts();prev();
+}
+function delEnt(k){ENTS.splice(k,1);drawEnts();prev();}
+
+function lines(){
+  const club=clean($('f_club').value),p=clean($('f_person').value),
+        tel=clean($('f_tel').value),memo=clean($('f_memo').value);
+  const out=[];
+  ENTS.forEach(e=>teamNames(e).forEach(n=>{
+    out.push('[申込] '+[n,e.cat,perTeam(e),$('f_from').value,$('f_to').value,e.target,p,tel,memo].join('|'));
+  }));
+  return out;
+}
+function text(){return lines().join('\n');}
+function prev(){
+  $('prev').textContent=text();
+  const club=clean($('f_club').value),okT=$('f_from').value<=$('f_to').value;
+  $('err').textContent=!club?'クラブ名を入力してください':(!okT?'最終試合のKOは、1試合目のKOより後にしてください':'');
+  $('btnLine').disabled=!(club&&okT);
+}
+document.querySelectorAll('input,textarea').forEach(el=>el.addEventListener('input',()=>{drawEnts();prev();}));
+drawEnts();prev();
+
+function send(){
+  const t=text();
+  if(navigator.share){navigator.share({text:t}).catch(()=>{});return;}
+  location.href='https://line.me/R/share?text='+encodeURIComponent(t);
+}
+function copyIt(){
+  const t=text();
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>alert('コピーしました。LINEなどで主催者に送ってください。'),()=>prompt('長押しでコピーしてください',t));
+  else prompt('長押しでコピーしてください',t);
+}
+</script>
+</body>
+</html>
