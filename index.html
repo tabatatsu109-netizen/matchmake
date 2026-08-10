@@ -146,6 +146,16 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
 .ptag.lock{background:#EFEFEC;color:#8A9490}
 .ptag.few{background:var(--chalk);color:#3A2E05}
 @media (min-width:760px){.pairGrid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}}
+/* 空き枠にその場で試合を入れる */
+.addbtn{font-family:var(--sans);font-size:13px;font-weight:700;padding:11px 15px;border:1px solid var(--turf);
+  background:#fff;color:var(--turf);border-radius:22px;cursor:pointer;width:auto;margin-left:9px;min-height:44px}
+.addbtn:hover{background:#EFF6F1}
+.addbox{display:flex;align-items:center;gap:7px;flex-wrap:wrap;text-align:left;padding:3px 0}
+.addbox select{width:auto;min-width:132px;max-width:190px;font-size:14px;padding:10px 7px;min-height:44px}
+.addbox .go{background:var(--turf);border-color:var(--turf);color:#fff}
+.addbox .go:disabled{opacity:.45;cursor:not-allowed}
+.addbox button{font-family:var(--sans);font-size:14px;font-weight:700;padding:10px 16px;border:1px solid var(--line);
+  background:#fff;color:var(--ink);border-radius:3px;cursor:pointer;width:auto;min-height:44px}
 @media print{
   header,.noprint,#msgs,#planbar{display:none!important}
   body{background:#fff;font-size:11pt;line-height:1.5}
@@ -320,7 +330,7 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
     <div id="msgs"></div>
     <div class="planbar noprint" id="planbar"></div>
     <div id="tables"></div>
-    <p class="hint noprint">カードをドラッグ、またはタップ2回で入れ替え。右端の「休憩」でその位置に休憩が入り、以降が1コマ後ろへずれます。</p>
+    <p class="hint noprint">カードをドラッグ、またはタップ2回で入れ替え。空き枠の「＋ 試合を入れる」でその場に試合を足せます。右端の「休憩」でその位置に休憩が入り、以降が1コマ後ろへずれます。</p>
     <div id="pteams"></div>
     <div id="pnote"></div>
     <div class="sum noprint" id="counts" style="margin-top:12px"></div>
@@ -819,7 +829,7 @@ function run(reseed){
   $('out').scrollIntoView({behavior:'smooth'});
 }
 function pick(i){
-  SEL=i;SELCELL=null;
+  SEL=i;SELCELL=null;ADDCELL=null;
   const p=ALL.plans,m=p[i].m;
   $('planbar').innerHTML=
     p.map((x,k)=>'<button class="pbtn'+(k===i?' on':'')+'" onclick="pick('+k+')">'+esc(x.name)+'</button>').join('')+
@@ -1020,6 +1030,62 @@ function dropOn(e,i){
   const j=parseInt(e.dataTransfer.getData('text/plain'),10);
   if(!isNaN(j)&&j!==i)swapCells(j,i);
 }
+/* ---------- 空き枠にその場で試合を入れる ---------- */
+let ADDCELL=null,ADDA='',ADDB='';
+function addAt(idx){ADDCELL=idx;ADDA='';ADDB='';render(ALL.plans[SEL]);}
+function addCancel(){ADDCELL=null;render(ALL.plans[SEL]);}
+function addSel(which,val){if(which==='a')ADDA=val;else ADDB=val;render(ALL.plans[SEL]);}
+function addDo(idx){
+  const r=ALL.plans[SEL].r;
+  const a=ALL.teams.filter(t=>String(t.id)===ADDA)[0],b=ALL.teams.filter(t=>String(t.id)===ADDB)[0];
+  if(!a||!b||a.id===b.id)return;
+  r.asg[idx]={a:a,b:b,cell:r.cells[idx]};
+  ADDCELL=null;recount();pick(SEL);
+}
+/* その枠に出せるか。時間内・コートのカテゴリー・すでに出ていないか */
+function addFree(t,cell,court,r,idx){
+  if(!inWindow(t,cell)||!fitsCourt(t,court))return '';
+  let n=0;
+  r.asg.forEach((m,k)=>{if(!m||k===idx)return;
+    if(m.a.id!==t.id&&m.b.id!==t.id)return;
+    const c=r.cells[k];if(c.start<cell.end&&cell.start<c.end)n++;});
+  if(n>=(t.dual?2:1))return '';
+  return 'ok';
+}
+function addWhy(t,cell,court,r,idx){
+  if(!inWindow(t,cell))return 'KO可能時間の外';
+  if(!fitsCourt(t,court))return 'このコートの対象カテゴリー外';
+  return 'この時間はすでに出場';
+}
+function addFormHTML(idx,courts,cell){
+  const r=ALL.plans[SEL].r,teams=ALL.teams,court=courts[cell.ci],cfg=pairCfg();
+  const left=t=>Math.max(0,t.target-r.played[t.id]);
+  const label=t=>esc(t.name)+'（'+r.played[t.id]+'/'+t.target+'本'+(left(t)?'・あと'+left(t):'')+'）';
+  const sel=ALL.teams.filter(t=>String(t.id)===ADDA)[0];
+  const mk=(which,cur,filter)=>{
+    const okList=[],ngList=[];
+    teams.forEach(t=>{
+      if(which==='b'&&String(t.id)===ADDA)return;
+      const o='<option value="'+t.id+'"'+(String(t.id)===cur?' selected':'')+'>';
+      if(!addFree(t,cell,court,r,idx)){ngList.push(o+label(t)+' … '+addWhy(t,cell,court,r,idx)+'</option>');return;}
+      const bad=filter?filter(t):'';
+      if(bad)ngList.push(o+label(t)+' … '+bad+'</option>');else okList.push(o+label(t)+'</option>');
+    });
+    return '<select onchange="addSel(\''+which+'\',this.value)">'+
+      '<option value="">'+(which==='a'?'チームを選ぶ':'相手を選ぶ')+'</option>'+
+      (okList.length?'<optgroup label="この時間に出せる">'+okList.join('')+'</optgroup>':'')+
+      (ngList.length?'<optgroup label="ふつうは組まない">'+ngList.join('')+'</optgroup>':'')+'</select>';
+  };
+  const oppBad=t=>{
+    if(!sel)return '';
+    const st=pairState(sel,t,cfg);
+    return st.allowed?'':(st.locked?'同じクラブ':'対戦しない組み合わせ');
+  };
+  return '<div class="addbox">'+mk('a',ADDA,null)+'<span class="vs">vs</span>'+
+    (ADDA?mk('b',ADDB,oppBad):'<select disabled><option>先にチームを選ぶ</option></select>')+
+    '<button class="go" onclick="'+stop+'addDo('+idx+')"'+(ADDA&&ADDB?'':' disabled')+'>入れる</button>'+
+    '<button onclick="'+stop+'addCancel()">やめる</button></div>';
+}
 const swapAttrs=i=>' data-i="'+i+'" draggable="true"'+
   ' ondragstart="dragStart(event,'+i+')" ondragover="dragOver(event,'+i+')"'+
   ' ondragleave="dragOut(event)" ondrop="dropOn(event,'+i+')" onclick="tapSwap('+i+')"';
@@ -1089,7 +1155,9 @@ function cellHTML(m,idx,no,courts,cell){
   if(EDIT)return '<td class="card">'+tsel(idx,'a',m?m.a:null,m?m.b:null)+'<span class="vs">vs</span>'+
     tsel(idx,'b',m?m.b:null,m?m.a:null)+flagHTML(idx)+'</td>';
   const btn='<button class="brkbtn" onclick="'+stop+'insertBreak('+idx+')" title="ここに休憩を入れ、以降を1コマ後ろへずらす">休憩</button>';
-  if(!m)return '<td class="blank"'+swapAttrs(idx)+'>'+btn+'（空き）</td>';
+  if(ADDCELL===idx)return '<td class="card">'+btn+addFormHTML(idx,courts,cell)+'</td>';
+  if(!m)return '<td class="blank"'+swapAttrs(idx)+'>'+btn+'（空き）'+
+    '<button class="addbtn" onclick="'+stop+'addAt('+idx+')" title="この枠に試合を入れる">＋ 試合を入れる</button></td>';
   return '<td class="card"'+swapAttrs(idx)+'>'+btn+'<span class="n">'+no[idx]+'</span>'+
     esc(m.a.name)+'<span class="vs">vs</span>'+esc(m.b.name)+flagHTML(idx)+'</td>';
 }
