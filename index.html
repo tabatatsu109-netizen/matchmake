@@ -128,6 +128,24 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
 .pnote{border:1px solid var(--line);border-left:3px solid var(--chalk);padding:9px 12px;font-size:13px;margin-top:16px;line-height:1.7}
 
 @page{margin:12mm}
+/* 対戦してよい組み合わせ（左＝チーム / 右＝その相手） */
+.pairGrid{display:grid;grid-template-columns:1fr;gap:10px}
+.pairCol{background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.pairHead{font-size:12px;font-weight:700;color:var(--dim);padding:9px 11px;border-bottom:1px solid var(--line);background:#F7F9F6}
+.pairRow{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:11px;border-bottom:1px solid var(--line);cursor:pointer;min-height:44px;background:#fff;width:100%;text-align:left;font-family:var(--sans);border-left:none;border-right:none;border-top:none}
+.pairRow:last-child{border-bottom:none}
+.pairRow:hover{background:#F2F6F1}
+.pairRow.on{background:#EFF6F1}
+.pairRow.on .pnm{color:var(--turf)}
+.pairRow[disabled]{cursor:not-allowed;opacity:.5}
+.pairRow .pnm{font-size:14px;font-weight:700}
+.pairRow .pmeta{font-size:11px;color:var(--dim);font-weight:400;margin-left:7px;font-family:var(--mono)}
+.pairRow .ptag{font-size:11px;font-weight:700;border-radius:20px;padding:4px 11px;white-space:nowrap;flex:0 0 auto}
+.ptag.yes{background:#E4F0E8;color:#1D6F4A}
+.ptag.no{background:#F7E3DF;color:#A33520}
+.ptag.lock{background:#EFEFEC;color:#8A9490}
+.ptag.few{background:var(--chalk);color:#3A2E05}
+@media (min-width:760px){.pairGrid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}}
 @media print{
   header,.noprint,#msgs,#planbar{display:none!important}
   body{background:#fff;font-size:11pt;line-height:1.5}
@@ -266,6 +284,28 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
     <button class="btn mini" onclick="document.getElementById('loadFile').click()">設定を読込</button>
     <input type="file" id="loadFile" accept=".json" style="display:none" onchange="loadJSON(this)">
     <span class="hint" id="teamHint"></span>
+  </div>
+</section>
+
+<section class="noprint">
+  <h2>対戦してよい組み合わせ<span>ふだんは触らなくてOK。「ここは当てたい／やめたい」がある時だけ</span></h2>
+  <div class="row-actions" style="margin:0 0 10px">
+    <button class="btn mini" id="pairToggle" onclick="togglePairs()">組み合わせを指定する</button>
+    <span class="hint" id="pairHint"></span>
+  </div>
+  <div id="pairBox" style="display:none">
+    <div class="row-actions" style="margin:0 0 10px">
+      <button class="btn mini" onclick="pairPreset('reset')" title="設定を消して、ランク・カテゴリーのルールどおりに戻す">ルールどおりに戻す</button>
+      <button class="btn mini" onclick="pairPreset('all')" title="同じクラブ同士以外は全部「対戦する」にする">全部 対戦する</button>
+    </div>
+    <div class="pairGrid">
+      <div class="pairCol" id="pairLeft"></div>
+      <div class="pairCol">
+        <div class="pairHead" id="pairRightHead"></div>
+        <div id="pairRight"></div>
+      </div>
+    </div>
+    <p class="hint" id="pairSum" style="margin-top:9px"></p>
   </div>
 </section>
 
@@ -424,6 +464,8 @@ function readTeams(){
 function refreshHint(){
   const ts=readTeams(),sum=ts.reduce((a,b)=>a+b.target,0);
   $('teamHint').textContent=ts.length+'チーム／希望本数 合計 '+sum+'本 → 必要試合数 '+(sum/2)+(sum%2?'（奇数なので1本余ります）':'');
+  if($('pairBox')&&$('pairBox').style.display!=='none')drawPairs();
+  else if($('pairHint'))refreshPairHint();
 }
 
 /* ---------- 参加申込：URL発行と取り込み ---------- */
@@ -561,20 +603,25 @@ function build(teams,courts,cells,cfg,seed,w){
       if(played[a.id]>=a.target||played[b.id]>=b.target)continue;
       if(ovl(mine[a.id],cell)>=(a.dual?2:1))continue;
       if(ovl(mine[b.id],cell)>=(b.dual?2:1))continue;
-      const cd=catDiff(a,b);if(cd===null||cd>cfg.maxCat)continue;
+      /* 手で指定した組み合わせ。しない＝完全に除外、対戦する＝ランク・カテゴリーより優先 */
+      const ov=cfg.ov?cfg.ov[i][j]:undefined;
+      if(ov===false)continue;
+      const cd=catDiff(a,b);
+      if(ov!==true&&(cd===null||cd>cfg.maxCat))continue;
       if((pairs[pk(a,b)]||0)>=cfg.maxSame)continue;
       const sameClub=sameClubP(a,b);
       if(sameClub&&cfg.club==='no')continue;
       /* 相手の「ところ」と当たるのが何本目か。A・Bなど別チームでも同じところと数える */
       const cRep=met[a.id][org[b.id]]+met[b.id][org[a.id]];
       const rankBad=!!(a.rank&&b.rank&&a.rank!==b.rank);
-      if(rankBad&&cfg.rank==='only')continue;
+      if(rankBad&&cfg.rank==='only'&&ov!==true)continue;
       const ga=minGap(mine[a.id],cell),gb=minGap(mine[b.id],cell);
       if(cfg.back==='hard'&&(ga<rest||gb<rest))continue;
       const na=a.target-played[a.id],nb=b.target-played[b.id];
-      let sc=(na+nb)*10-cd*w.cat-(pairs[pk(a,b)]||0)*w.rep-cRep*(w.club||0);
+      /* 「対戦する」と指定した組はカテゴリー差・ランク違いの減点をしない */
+      let sc=(na+nb)*10-(ov===true?0:(cd||0))*w.cat-(pairs[pk(a,b)]||0)*w.rep-cRep*(w.club||0);
       if(sameClub)sc-=300;
-      if(rankBad&&cfg.rank==='pref')sc-=200;
+      if(rankBad&&cfg.rank==='pref'&&ov!==true)sc-=200;
       if(cfg.back!=='free')sc-=((ga<rest?1:0)+(gb<rest?1:0))*w.back;
       if(w.compact){
         if(ga<Infinity)sc-=Math.min(ga,180)/30*w.compact;
@@ -604,12 +651,15 @@ function metrics(r,teams,cfg){
   let matches=0,rep=0,repClub=0,miss=0,btb=0,spanSum=0,maxSpan=0,lastEnd=0,catSum=0,clubHit=0,rankHit=0;
   const pc={},met={},org={},ref=Math.min.apply(null,r.courts.map(c=>c.interval));
   teams.forEach(t=>{met[t.id]={};org[t.id]=clubOf(t);});
-  r.asg.forEach(m=>{if(!m)return;matches++;const k=pk(m.a,m.b);pc[k]=(pc[k]||0)+1;catSum+=catDiff(m.a,m.b)||0;
+  r.asg.forEach(m=>{if(!m)return;matches++;const k=pk(m.a,m.b);pc[k]=(pc[k]||0)+1;
+    /* 「対戦する」と指定した組は、カテゴリー差・ランク違いとして数えない */
+    const okPair=povGet(m.a,m.b)===true;
+    if(!okPair)catSum+=catDiff(m.a,m.b)||0;
     if(sameClubP(m.a,m.b))clubHit++;
     const oa=org[m.a.id]||clubOf(m.a),ob=org[m.b.id]||clubOf(m.b);
     if(met[m.a.id])met[m.a.id][ob]=(met[m.a.id][ob]||0)+1;
     if(met[m.b.id])met[m.b.id][oa]=(met[m.b.id][oa]||0)+1;
-    if(m.a.rank&&m.b.rank&&m.a.rank!==m.b.rank)rankHit++;});
+    if(!okPair&&m.a.rank&&m.b.rank&&m.a.rank!==m.b.rank)rankHit++;});
   Object.values(pc).forEach(v=>{if(v>1)rep+=v-1;});
   /* チームから見て「同じところ」と2本目以降になった数（A・Bで参加していても1つのところと数える） */
   teams.forEach(t=>Object.values(met[t.id]).forEach(v=>{if(v>1)repClub+=v-1;}));
@@ -637,6 +687,101 @@ const PLANS=[
  {name:'早上がり',desc:'各チームの試合を固めて早く帰す',w:{cat:6,rep:12,club:16,back:0,compact:16,noise:5}},
  {name:'同学年優先',desc:'カテゴリー差のある対戦を避ける',w:{cat:45,rep:14,club:24,back:8,compact:0,noise:6}}];
 
+/* ---------- 対戦してよい組み合わせ ----------
+   指定した分だけ持つ。空なら今までどおり（ランク・カテゴリーのルールで判定） */
+let PAIROV={},PAIRSEL=0;
+const povk=(a,b)=>{const x=a.name!==undefined?a.name:a,y=b.name!==undefined?b.name:b;
+  return JSON.stringify(x<y?[x,y]:[y,x]);};
+const povGet=(a,b)=>PAIROV[povk(a,b)];
+/* 手で指定していないときの既定。build の判定と同じ条件にそろえる */
+function pairAuto(a,b,cfg){
+  if(sameClubP(a,b)&&cfg.club==='no')return false;
+  const cd=catDiff(a,b);
+  if(cd===null||cd>cfg.maxCat)return false;
+  if(a.rank&&b.rank&&a.rank!==b.rank&&cfg.rank==='only')return false;
+  return true;
+}
+function pairCfg(){
+  return {maxCat:+$('cfgCat').value,club:$('cfgClub').value,rank:$('cfgRank').value};
+}
+/* 表示用の状態。locked = 同じクラブ同士で設定が「禁止」のとき（手では変えられない） */
+function pairState(a,b,cfg){
+  const locked=sameClubP(a,b)&&cfg.club==='no';
+  const ov=povGet(a,b);
+  return {locked:locked,explicit:!locked&&ov!==undefined,
+    allowed:locked?false:(ov!==undefined?ov:pairAuto(a,b,cfg))};
+}
+function pairCount(t,teams,cfg){
+  let n=0;teams.forEach(o=>{if(o.id!==t.id&&pairState(t,o,cfg).allowed)n++;});return n;
+}
+function togglePairs(){
+  const b=$('pairBox'),open=b.style.display==='none';
+  b.style.display=open?'block':'none';
+  $('pairToggle').textContent=open?'指定を閉じる':'組み合わせを指定する';
+  if(open)drawPairs();
+}
+function pairPick(i){PAIRSEL=i;drawPairs();}
+function pairSet(j){
+  const teams=readTeams(),cfg=pairCfg(),a=teams[PAIRSEL],b=teams[j];
+  if(!a||!b)return;
+  const st=pairState(a,b,cfg);
+  if(st.locked)return;
+  const next=!st.allowed;
+  /* ルールどおりの値に戻ったら指定を消す（余計な設定を残さない） */
+  if(next===pairAuto(a,b,cfg))delete PAIROV[povk(a,b)];
+  else PAIROV[povk(a,b)]=next;
+  drawPairs();
+}
+function pairPreset(mode){
+  const teams=readTeams(),cfg=pairCfg();
+  PAIROV={};
+  if(mode==='all')teams.forEach((a,i)=>teams.forEach((b,j)=>{
+    if(j<=i)return;
+    const locked=sameClubP(a,b)&&cfg.club==='no';
+    if(!locked&&!pairAuto(a,b,cfg))PAIROV[povk(a,b)]=true;
+  }));
+  drawPairs();
+}
+function pairOverrideCount(){return Object.keys(PAIROV).length;}
+function refreshPairHint(){
+  const n=pairOverrideCount();
+  $('pairHint').textContent=n?n+'組を手で指定しています':'いまはランク・カテゴリーのルールどおりです';
+}
+function drawPairs(){
+  const teams=readTeams(),cfg=pairCfg();
+  if(teams.length<2){
+    $('pairLeft').innerHTML='<div class="pairHead">チームを2つ以上入れてください</div>';
+    $('pairRight').innerHTML='';$('pairRightHead').textContent='';$('pairSum').textContent='';
+    refreshPairHint();return;
+  }
+  if(PAIRSEL>=teams.length)PAIRSEL=0;
+  const sel=teams[PAIRSEL];
+  const meta=t=>esc(t.catRaw)+(t.rank?' / '+esc(t.rank):'');
+  $('pairLeft').innerHTML='<div class="pairHead">チーム（相手の数）</div>'+
+    teams.map((t,i)=>{
+      const n=pairCount(t,teams,cfg);
+      return '<button class="pairRow'+(i===PAIRSEL?' on':'')+'" onclick="pairPick('+i+')">'+
+        '<span class="pnm">'+esc(t.name)+'<span class="pmeta">'+meta(t)+'</span></span>'+
+        '<span class="ptag '+(n<=1?'few':'lock')+'">'+n+'チーム</span></button>';
+    }).join('');
+  $('pairRightHead').textContent=sel.name+' が対戦してよい相手';
+  $('pairRight').innerHTML=teams.map((t,j)=>{
+    if(j===PAIRSEL)return '';
+    const st=pairState(sel,t,cfg);
+    const tag=st.locked?'<span class="ptag lock">同クラブ</span>':
+      '<span class="ptag '+(st.allowed?'yes':'no')+'">'+(st.allowed?'対戦する':'しない')+(st.explicit?' ●':'')+'</span>';
+    return '<button class="pairRow" '+(st.locked?'disabled':'onclick="pairSet('+j+')"')+'>'+
+      '<span class="pnm">'+esc(t.name)+'<span class="pmeta">'+meta(t)+'</span></span>'+tag+'</button>';
+  }).join('');
+  let ok=0,all=0;
+  teams.forEach((a,i)=>teams.forEach((b,j)=>{if(j<=i)return;all++;if(pairState(a,b,cfg).allowed)ok++;}));
+  const few=teams.filter(t=>pairCount(t,teams,cfg)<=1);
+  $('pairSum').innerHTML='対戦してよいペア '+ok+' / '+all+'　●が付いているのは手で指定したところ。'+
+    (few.length?'<br><b style="color:var(--warn)">相手が1チーム以下：'+few.map(t=>esc(t.name)).join('、')+
+      '</b> — このままだと本数が足りなくなります':'');
+  refreshPairHint();
+}
+
 /* ---------- run / render ---------- */
 let LAST=null,ALL=null,SEL=0,SEEDBASE=0;
 function run(reseed){
@@ -646,6 +791,8 @@ function run(reseed){
   const cfg={maxCat:+$('cfgCat').value,back:$('cfgBack').value,maxSame:+$('cfgSame').value,
     format:+$('cfgFormat').value,club:$('cfgClub').value,rank:$('cfgRank').value,
     mix:+($('cfgMix')?$('cfgMix').value:1)};
+  /* 手で指定した対戦可否を一度だけ表にしておく（内側ループを速く保つ） */
+  cfg.ov=teams.map(a=>teams.map(b=>povGet(a,b)));
   const cells=makeCells(courts);
   if(!cells.length){alert('使用時間が短すぎて試合枠が作れません');return;}
   if(reseed)SEEDBASE=Math.floor(Math.random()*900000)+1;
@@ -914,9 +1061,11 @@ function checkAll(){
     const c=courts[m.cell.ci],L=toHM(m.cell.start)+' '+c.name+'：';
     if(m.a.id===m.b.id)flag(idx,L+'同じチーム同士になっています');
     if(m.a.club&&m.a.club===m.b.club)flag(idx,L+'同じクラブ同士の対戦（'+m.a.club+'）');
-    if(m.a.rank&&m.b.rank&&m.a.rank!==m.b.rank)flag(idx,L+'ランク違い（'+m.a.rank+' vs '+m.b.rank+'）');
+    const ov=povGet(m.a,m.b);
+    if(ov===false)flag(idx,L+'「対戦しない」と指定した組み合わせ（'+m.a.name+' × '+m.b.name+'）');
+    if(ov!==true&&m.a.rank&&m.b.rank&&m.a.rank!==m.b.rank)flag(idx,L+'ランク違い（'+m.a.rank+' vs '+m.b.rank+'）');
     const cd=catDiff(m.a,m.b);
-    if(cd===null||cd>cfg.maxCat)flag(idx,L+'カテゴリー差が設定の範囲外（'+m.a.catRaw+' vs '+m.b.catRaw+'）');
+    if(ov!==true&&(cd===null||cd>cfg.maxCat))flag(idx,L+'カテゴリー差が設定の範囲外（'+m.a.catRaw+' vs '+m.b.catRaw+'）');
     [m.a,m.b].forEach(t=>{
       if(!inWindow(t,m.cell))flag(idx,L+t.name+' はKO可能時間の外');
       if(!fitsCourt(t,c))flag(idx,L+t.name+' はこのコートの使用カテゴリー外');
@@ -1038,7 +1187,8 @@ function savePNG(){
   cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='schedule.png';a.click();});
 }
 function saveJSON(){
-  const o={cfg:{},courts:readCourts(),teams:readTeams()};
+  const o={cfg:{},courts:readCourts(),teams:readTeams(),
+    pairs:Object.keys(PAIROV).map(k=>{const p=JSON.parse(k);return [p[0],p[1],PAIROV[k]];})};
   ['cfgDate','cfgTitle','cfgVenue','cfgNote','cfgCourts','cfgFormat','cfgCat','cfgBack','cfgSame','cfgView','cfgClub','cfgRank','cfgMix'].forEach(k=>o.cfg[k]=$(k).value);
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,1)],{type:'application/json'}));
@@ -1062,6 +1212,9 @@ function loadJSON(el){
     });
     $('teamBody').innerHTML='';
     (o.teams||[]).forEach(t=>addTeam([t.name,t.catRaw,t.players,toHM2(t.from),toHM2(t.to),t.target,t.dual,t.home,t.club,t.rank]));
+    PAIROV={};
+    (o.pairs||[]).forEach(p=>{PAIROV[povk(p[0],p[1])]=!!p[2];});
+    if($('pairBox').style.display!=='none')drawPairs();else refreshPairHint();
   }catch(e){alert('読み込めませんでした');}};
   rd.readAsText(f);el.value='';
 }
