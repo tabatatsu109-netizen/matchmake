@@ -191,6 +191,10 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
       <option value="soft" selected>なるべく避ける</option><option value="hard">禁止（必ず1本空ける）</option>
       <option value="free">気にしない</option></select></div>
     <div><label>同じカードの上限</label><input type="number" id="cfgSame" value="2" min="1" max="5"></div>
+    <div><label title="A・Bなど複数チームで参加するクラブがいるとき、同じクラブとばかり当たらないようにします">対戦相手のばらけ</label><select id="cfgMix">
+      <option value="1" selected>なるべく色々なクラブと</option>
+      <option value="3">できる限り色々なクラブと</option>
+      <option value="0">気にしない</option></select></div>
     <div><label>同じクラブ同士の対戦</label><select id="cfgClub">
       <option value="no" selected>禁止</option><option value="soft">なるべく避ける</option>
       <option value="ok">許可</option></select></div>
@@ -515,6 +519,16 @@ function makeCells(courts){
   return cells;
 }
 const pk=(a,b)=>a.id<b.id?a.id+'-'+b.id:b.id+'-'+a.id;
+/* 「同じところ」を表すキー。末尾のカテゴリー表記を落として団体名にまとめる。
+   ばらけ（分散）の判定にだけ使い、同クラブ対戦の禁止判定には使わない */
+const ORGCUT=/[\s\-‐・]*(?:U-?\d{1,2}|[1-6]年生?|中[1-3]|小[1-6]|ジュニアユース|ユース|ジュニア)$/i;
+function clubOf(t){
+  let s=(t.club||t.name||'').trim();
+  for(let i=0;i<2;i++){const n=s.replace(ORGCUT,'').trim();if(n===s||!n)break;s=n;}
+  return s||t.club||t.name||('#'+t.id);
+}
+/* 同じクラブ同士（対戦禁止に使う）はクラブ欄の完全一致のみ */
+const sameClubP=(a,b)=>!!(a.club&&b.club&&a.club===b.club);
 function catDiff(a,b){
   if(a.cat==null||b.cat==null)return a.catRaw===b.catRaw?0:null;
   return Math.abs(a.cat-b.cat);
@@ -531,7 +545,10 @@ function minGap(list,cell){
 function build(teams,courts,cells,cfg,seed,w){
   const rnd=mulberry32(seed),played={},mine={},pairs={},asg=new Array(cells.length).fill(null);
   const avCnt={};
-  teams.forEach(t=>{played[t.id]=0;mine[t.id]=[];
+  /* クラブを整数に置き換えて「どのクラブと何本目か」を高速に数える */
+  const orgList=[],org=[],met=[];
+  teams.forEach(t=>{const o=clubOf(t);let k=orgList.indexOf(o);if(k<0){k=orgList.length;orgList.push(o);}org[t.id]=k;});
+  teams.forEach(t=>{played[t.id]=0;mine[t.id]=[];met[t.id]=new Int32Array(orgList.length);
     avCnt[t.id]=cells.filter(c=>inWindow(t,c)&&fitsCourt(t,courts[c.ci])).length;});
   cells.forEach((cell,idx)=>{
     if(cell.brk)return;
@@ -546,14 +563,16 @@ function build(teams,courts,cells,cfg,seed,w){
       if(ovl(mine[b.id],cell)>=(b.dual?2:1))continue;
       const cd=catDiff(a,b);if(cd===null||cd>cfg.maxCat)continue;
       if((pairs[pk(a,b)]||0)>=cfg.maxSame)continue;
-      const sameClub=!!(a.club&&b.club&&a.club===b.club);
+      const sameClub=sameClubP(a,b);
       if(sameClub&&cfg.club==='no')continue;
+      /* 相手の「ところ」と当たるのが何本目か。A・Bなど別チームでも同じところと数える */
+      const cRep=met[a.id][org[b.id]]+met[b.id][org[a.id]];
       const rankBad=!!(a.rank&&b.rank&&a.rank!==b.rank);
       if(rankBad&&cfg.rank==='only')continue;
       const ga=minGap(mine[a.id],cell),gb=minGap(mine[b.id],cell);
       if(cfg.back==='hard'&&(ga<rest||gb<rest))continue;
       const na=a.target-played[a.id],nb=b.target-played[b.id];
-      let sc=(na+nb)*10-cd*w.cat-(pairs[pk(a,b)]||0)*w.rep;
+      let sc=(na+nb)*10-cd*w.cat-(pairs[pk(a,b)]||0)*w.rep-cRep*(w.club||0);
       if(sameClub)sc-=300;
       if(rankBad&&cfg.rank==='pref')sc-=200;
       if(cfg.back!=='free')sc-=((ga<rest?1:0)+(gb<rest?1:0))*w.back;
@@ -572,20 +591,28 @@ function build(teams,courts,cells,cfg,seed,w){
     mine[a.id].push(cell);mine[b.id].push(cell);
     played[a.id]++;played[b.id]++;
     pairs[pk(a,b)]=(pairs[pk(a,b)]||0)+1;
+    met[a.id][org[b.id]]++;met[b.id][org[a.id]]++;
   });
   const r={cells,asg,played,courts};
   const m=metrics(r,teams,cfg);
-  r.cost=m.miss*1000+m.btb*Math.max(w.back,1)+m.rep*w.rep+(w.compact?m.spanSum*w.compact/40:0)+m.catSum*w.cat
+  r.cost=m.miss*1000+m.btb*Math.max(w.back,1)+m.rep*w.rep+m.repClub*(w.club||0)
+    +(w.compact?m.spanSum*w.compact/40:0)+m.catSum*w.cat
     +m.clubHit*600+m.rankHit*400;
   return r;
 }
 function metrics(r,teams,cfg){
-  let matches=0,rep=0,miss=0,btb=0,spanSum=0,maxSpan=0,lastEnd=0,catSum=0,clubHit=0,rankHit=0;
-  const pc={},ref=Math.min.apply(null,r.courts.map(c=>c.interval));
+  let matches=0,rep=0,repClub=0,miss=0,btb=0,spanSum=0,maxSpan=0,lastEnd=0,catSum=0,clubHit=0,rankHit=0;
+  const pc={},met={},org={},ref=Math.min.apply(null,r.courts.map(c=>c.interval));
+  teams.forEach(t=>{met[t.id]={};org[t.id]=clubOf(t);});
   r.asg.forEach(m=>{if(!m)return;matches++;const k=pk(m.a,m.b);pc[k]=(pc[k]||0)+1;catSum+=catDiff(m.a,m.b)||0;
-    if(m.a.club&&m.a.club===m.b.club)clubHit++;
+    if(sameClubP(m.a,m.b))clubHit++;
+    const oa=org[m.a.id]||clubOf(m.a),ob=org[m.b.id]||clubOf(m.b);
+    if(met[m.a.id])met[m.a.id][ob]=(met[m.a.id][ob]||0)+1;
+    if(met[m.b.id])met[m.b.id][oa]=(met[m.b.id][oa]||0)+1;
     if(m.a.rank&&m.b.rank&&m.a.rank!==m.b.rank)rankHit++;});
   Object.values(pc).forEach(v=>{if(v>1)rep+=v-1;});
+  /* チームから見て「同じところ」と2本目以降になった数（A・Bで参加していても1つのところと数える） */
+  teams.forEach(t=>Object.values(met[t.id]).forEach(v=>{if(v>1)repClub+=v-1;}));
   teams.forEach(t=>{
     miss+=Math.max(0,t.target-r.played[t.id]);
     const ms=r.asg.filter(m=>m&&(m.a.id===t.id||m.b.id===t.id)).map(m=>m.cell).sort((x,y)=>x.start-y.start);
@@ -595,19 +622,20 @@ function metrics(r,teams,cfg){
       spanSum+=sp;maxSpan=Math.max(maxSpan,sp);lastEnd=Math.max(lastEnd,ms[ms.length-1].end);
     }
   });
-  return {matches,rep,miss,btb,spanSum,maxSpan,lastEnd,catSum,clubHit,rankHit};
+  return {matches,rep,repClub,miss,btb,spanSum,maxSpan,lastEnd,catSum,clubHit,rankHit};
 }
 function solve(teams,courts,cells,cfg,w,base){
   let best=null;
   for(let k=0;k<220;k++){const r=build(teams,courts,cells,cfg,base+k*7919+13,w);if(!best||r.cost<best.cost)best=r;}
   return best;
 }
+/* club = 同じクラブ（A・Bなど）と再び当たることへのペナルティ */
 const PLANS=[
- {name:'バランス型',desc:'本数・休憩・対戦相手をまんべんなく',w:{cat:6,rep:14,back:8,compact:0,noise:7}},
- {name:'休憩たっぷり',desc:'連戦をできる限り作らない',w:{cat:6,rep:12,back:60,compact:0,noise:6}},
- {name:'相手をバラす',desc:'同じカードの繰り返しを最小に',w:{cat:5,rep:70,back:8,compact:0,noise:6}},
- {name:'早上がり',desc:'各チームの試合を固めて早く帰す',w:{cat:6,rep:12,back:0,compact:16,noise:5}},
- {name:'同学年優先',desc:'カテゴリー差のある対戦を避ける',w:{cat:45,rep:14,back:8,compact:0,noise:6}}];
+ {name:'バランス型',desc:'本数・休憩・対戦相手をまんべんなく',w:{cat:6,rep:14,club:26,back:8,compact:0,noise:7}},
+ {name:'休憩たっぷり',desc:'連戦をできる限り作らない',w:{cat:6,rep:12,club:20,back:60,compact:0,noise:6}},
+ {name:'相手をバラす',desc:'色々なクラブと当たれるように最優先',w:{cat:5,rep:70,club:90,back:8,compact:0,noise:6}},
+ {name:'早上がり',desc:'各チームの試合を固めて早く帰す',w:{cat:6,rep:12,club:16,back:0,compact:16,noise:5}},
+ {name:'同学年優先',desc:'カテゴリー差のある対戦を避ける',w:{cat:45,rep:14,club:24,back:8,compact:0,noise:6}}];
 
 /* ---------- run / render ---------- */
 let LAST=null,ALL=null,SEL=0,SEEDBASE=0;
@@ -616,21 +644,28 @@ function run(reseed){
   if(teams.length<2){alert('チームを2つ以上入れてください');return;}
   if(courts.some(c=>c.from==null||c.to==null||c.to<=c.from)){alert('コートの使用時間を確認してください');return;}
   const cfg={maxCat:+$('cfgCat').value,back:$('cfgBack').value,maxSame:+$('cfgSame').value,
-    format:+$('cfgFormat').value,club:$('cfgClub').value,rank:$('cfgRank').value};
+    format:+$('cfgFormat').value,club:$('cfgClub').value,rank:$('cfgRank').value,
+    mix:+($('cfgMix')?$('cfgMix').value:1)};
   const cells=makeCells(courts);
   if(!cells.length){alert('使用時間が短すぎて試合枠が作れません');return;}
   if(reseed)SEEDBASE=Math.floor(Math.random()*900000)+1;
   const plans=[],sigs=new Set();
   PLANS.forEach(p=>{
-    const r=solve(teams,courts,cells,cfg,p.w,SEEDBASE);
+    /* 「対戦相手のばらけ」設定でクラブ分散の効き具合を変える */
+    const w=Object.assign({},p.w,{club:(p.w.club||0)*cfg.mix});
+    const r=solve(teams,courts,cells,cfg,w,SEEDBASE);
     const sig=JSON.stringify(r.asg.map(m=>m?pk(m.a,m.b):'-'));
     if(sigs.has(sig))return;sigs.add(sig);
     plans.push({name:p.name,desc:p.desc,r,m:metrics(r,teams,cfg),
       orig:r.asg.map(m=>m?{a:m.a,b:m.b,cell:m.cell}:null)});
   });
   let bi=0;
-  plans.forEach((p,i)=>{const b=plans[bi].m;
-    if(p.m.miss<b.miss||(p.m.miss===b.miss&&p.m.btb<b.btb)||(p.m.miss===b.miss&&p.m.btb===b.btb&&p.m.rep<b.rep))bi=i;});
+  /* 不足 → 連戦 → 同カード重複 → 同クラブ再戦 の順で良い案を選ぶ */
+  const key=m=>[m.miss,m.btb,m.rep,cfg.mix?m.repClub:0];
+  plans.forEach((p,i)=>{
+    const a=key(p.m),b=key(plans[bi].m);
+    for(let k=0;k<a.length;k++){if(a[k]!==b[k]){if(a[k]<b[k])bi=i;return;}}
+  });
   ALL={plans,cfg,teams,courts,best:bi};
   $('out').style.display='block';
   pick(bi);
@@ -643,8 +678,9 @@ function pick(i){
     p.map((x,k)=>'<button class="pbtn'+(k===i?' on':'')+'" onclick="pick('+k+')">'+esc(x.name)+'</button>').join('')+
     '<button class="pbtn re" onclick="run(true)">↻ 別パターン</button>'+
     '<span class="pstat">'+m.matches+'本'+
-      (m.miss?'・不足'+m.miss:'')+(m.btb?'・連戦'+m.btb:'')+(m.rep?'・重複'+m.rep:'')+
-      (m.clubHit?'・同クラブ'+m.clubHit:'')+(m.rankHit?'・ランク違い'+m.rankHit:'')+
+      (m.miss?'・不足'+m.miss:'')+(m.btb?'・連戦'+m.btb:'')+(m.rep?'・同カード'+m.rep:'')+
+      (m.repClub?'・同クラブ再戦'+m.repClub:'')+
+      (m.clubHit?'・同クラブ対戦'+m.clubHit:'')+(m.rankHit?'・ランク違い'+m.rankHit:'')+
       '・終了'+toHM(m.lastEnd)+'</span>';
   render(p[i]);
 }
@@ -669,6 +705,21 @@ function render(plan){
   if(few.length)msg+='<div class="alert"><b>人数不足の可能性：</b>'+few.map(t=>esc(t.name)+'（'+t.players+'人）').join('、')+' ／ '+cfg.format+'人制に対して足りません。</div>';
   const many=teams.filter(t=>!t.dual&&t.players>=cfg.format*2);
   if(many.length&&courts.length>1)msg+='<div class="ok">'+many.map(t=>esc(t.name)).join('、')+' は人数が多いので「2面」にチェックを入れると同時刻に2試合出せます。</div>';
+  /* 同じクラブと2本以上当たっているチームを知らせる */
+  const dup=[];
+  teams.forEach(t=>{
+    const cnt={};
+    r.asg.forEach(m=>{
+      if(!m)return;
+      const o=m.a.id===t.id?m.b:(m.b.id===t.id?m.a:null);
+      if(!o||sameClubP(t,o))return;
+      const c=clubOf(o);cnt[c]=(cnt[c]||0)+1;
+    });
+    const ks=Object.keys(cnt).filter(k=>cnt[k]>1);
+    if(ks.length)dup.push(esc(t.name)+'（'+ks.map(k=>esc(k)+'と'+cnt[k]+'本').join('、')+'）');
+  });
+  if(dup.length)msg+='<div class="alert"><b>同じクラブと複数回あたるチーム：</b>'+dup.join('、')+
+    '<br>→「相手をバラす」案や「↻ 別パターン」で減ることがあります。参加クラブ数が少ない場合は避けられません。</div>';
   const idle=r.cells.filter(c=>!c.brk).length-r.asg.filter(Boolean).length;
   if(idle)msg+='<div class="ok">空き枠が'+idle+'枠あります。希望本数を増やすか、コートの使用時間を短くできます。</div>';
   const probs=checkAll();
@@ -688,21 +739,29 @@ function render(plan){
 
   /* 参加チーム一覧（印刷して配るための表） */
   const multi=courts.length>1;
-  let pt='<div class="psub">参加チームと出場予定</div><table class="ptbl"><thead><tr>'+
-    '<th>チーム</th><th>カテゴリー</th><th>人数</th><th>本数</th><th>出場時刻（対戦相手）</th></tr></thead><tbody>';
+  let pt='<div class="psub">参加チームと出場予定</div><div class="scroll"><table class="ptbl"><thead><tr>'+
+    '<th>チーム</th><th>カテゴリー</th><th>人数</th><th>本数</th>'+
+    '<th title="対戦する相手クラブの数（A・Bは1クラブと数えます）">相手</th>'+
+    '<th>出場時刻（対戦相手）</th></tr></thead><tbody>';
   teams.forEach(t=>{
-    const ms=[];
+    const ms=[],ocl={};
     r.cells.forEach((c,i)=>{
       const m=r.asg[i];if(!m)return;
-      if(m.a.id===t.id||m.b.id===t.id)ms.push({s:c.start,ci:c.ci,o:(m.a.id===t.id?m.b:m.a).name});
+      if(m.a.id===t.id||m.b.id===t.id){
+        const o=m.a.id===t.id?m.b:m.a;
+        ms.push({s:c.start,ci:c.ci,o:o.name});
+        ocl[clubOf(o)]=1;
+      }
     });
     ms.sort((x,y)=>x.s-y.s);
+    const nc=Object.keys(ocl).length;
     pt+='<tr><td class="nm">'+esc(t.name)+'</td><td class="num">'+esc(t.catRaw)+'</td>'+
-      '<td class="num">'+t.players+'</td><td class="num">'+ms.length+'本</td><td class="ml">'+
+      '<td class="num">'+t.players+'</td><td class="num">'+ms.length+'本</td>'+
+      '<td class="num">'+(nc?nc+'クラブ':'—')+'</td><td class="ml">'+
       (ms.length?ms.map(x=>'<i>'+toHM(x.s)+'</i>'+(multi?'['+esc(courts[x.ci].name)+']':'')+esc(x.o)).join('　／　'):'—')+
       '</td></tr>';
   });
-  $('pteams').innerHTML=pt+'</tbody></table>';
+  $('pteams').innerHTML=pt+'</tbody></table></div>';
 
   const note=$('cfgNote').value.trim();
   $('pnote').innerHTML=note?'<div class="pnote">'+esc(note).replace(/／/g,'<br>')+'</div>':'';
@@ -980,7 +1039,7 @@ function savePNG(){
 }
 function saveJSON(){
   const o={cfg:{},courts:readCourts(),teams:readTeams()};
-  ['cfgDate','cfgTitle','cfgVenue','cfgNote','cfgCourts','cfgFormat','cfgCat','cfgBack','cfgSame','cfgView','cfgClub','cfgRank'].forEach(k=>o.cfg[k]=$(k).value);
+  ['cfgDate','cfgTitle','cfgVenue','cfgNote','cfgCourts','cfgFormat','cfgCat','cfgBack','cfgSame','cfgView','cfgClub','cfgRank','cfgMix'].forEach(k=>o.cfg[k]=$(k).value);
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,1)],{type:'application/json'}));
   a.download='matchmake.json';a.click();

@@ -121,6 +121,7 @@ const $=id=>document.getElementById(id);
 const q=new URLSearchParams(location.search);
 const CATS=['U18','U17','U16','U15','U14','U13','U12','U11','U10','U9','U8'];
 let ENTS=[{cat:'U15',teams:1,players:15,target:3}];
+let MIN=null;   /* 試合時間（分）。下の開催情報の読み取りより先に宣言しておく */
 
 /* 開催情報（主催者ページが付ける ?d=&v=&t=&m=&i=&s=&e=） */
 (function(){
@@ -135,7 +136,6 @@ let ENTS=[{cat:'U15',teams:1,players:15,target:3}];
   if(e)$('f_to').value=e;
   if(m)MIN=m;
 })();
-let MIN=null;
 
 const clean=s=>String(s||'').replace(/[|｜\r\n]+/g,' ').trim();
 function teamNames(e){
