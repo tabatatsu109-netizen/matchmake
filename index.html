@@ -156,6 +156,10 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
 .addbox .go:disabled{opacity:.45;cursor:not-allowed}
 .addbox button{font-family:var(--sans);font-size:14px;font-weight:700;padding:10px 16px;border:1px solid var(--line);
   background:#fff;color:var(--ink);border-radius:3px;cursor:pointer;width:auto;min-height:44px}
+/* 完成した表でチーム名を押して差し替える */
+.tname{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--ink);background:none;border:none;
+  border-bottom:1px dashed #AFC0B4;padding:11px 3px;cursor:pointer;border-radius:0;width:auto;min-height:44px;text-align:left}
+.tname:hover{background:#EFF6F1;border-bottom-color:var(--turf);color:var(--turf)}
 @media print{
   header,.noprint,#msgs,#planbar{display:none!important}
   body{background:#fff;font-size:11pt;line-height:1.5}
@@ -171,7 +175,8 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
   .sched td.time,.sched tr.home td.card,.sched td.blank{background:#fff!important}
   .sched td.brk{background:#fff!important;color:#000!important;border-top:1px solid #888;border-bottom:1px solid #888}
   .sched tr,.ptbl tr{break-inside:avoid}
-  .brkbtn,.flag{display:none!important}
+  .brkbtn,.flag,.addbtn{display:none!important}
+  .tname{border-bottom:none;padding:0;font-size:inherit;color:#000}
   .sched td.card .n{border:none;color:#000;font-weight:700;padding:0;margin-right:7px}
   .ptbl{font-size:9.5pt}
   .ptbl th{background:#fff!important;color:#000!important;border:1px solid #888;font-size:8.5pt}
@@ -330,7 +335,7 @@ input:focus,select:focus{outline:2px solid var(--turf);outline-offset:-1px}
     <div id="msgs"></div>
     <div class="planbar noprint" id="planbar"></div>
     <div id="tables"></div>
-    <p class="hint noprint">カードをドラッグ、またはタップ2回で入れ替え。空き枠の「＋ 試合を入れる」でその場に試合を足せます。右端の「休憩」でその位置に休憩が入り、以降が1コマ後ろへずれます。</p>
+    <p class="hint noprint">チーム名を押すとそのチームだけ他チームに変えられます。カードをドラッグ、またはタップ2回で試合ごと入れ替え。空き枠の「＋ 試合を入れる」でその場に試合を足せます。右端の「休憩」でその位置に休憩が入り、以降が1コマ後ろへずれます。</p>
     <div id="pteams"></div>
     <div id="pnote"></div>
     <div class="sum noprint" id="counts" style="margin-top:12px"></div>
@@ -721,6 +726,17 @@ function pairState(a,b,cfg){
   return {locked:locked,explicit:!locked&&ov!==undefined,
     allowed:locked?false:(ov!==undefined?ov:pairAuto(a,b,cfg))};
 }
+/* 組めない理由をひとことで返す。組めるなら空文字 */
+function pairWhy(a,b,cfg){
+  const st=pairState(a,b,cfg);
+  if(st.allowed)return '';
+  if(st.locked)return '同じクラブ';
+  if(st.explicit)return '「対戦しない」と指定';
+  const cd=catDiff(a,b);
+  if(cd===null||cd>cfg.maxCat)return 'カテゴリー差が範囲外';
+  if(a.rank&&b.rank&&a.rank!==b.rank&&cfg.rank==='only')return 'ランク違い';
+  return '組めない組み合わせ';
+}
 function pairCount(t,teams,cfg){
   let n=0;teams.forEach(o=>{if(o.id!==t.id&&pairState(t,o,cfg).allowed)n++;});return n;
 }
@@ -829,7 +845,7 @@ function run(reseed){
   $('out').scrollIntoView({behavior:'smooth'});
 }
 function pick(i){
-  SEL=i;SELCELL=null;ADDCELL=null;
+  SEL=i;SELCELL=null;ADDCELL=null;EDITSLOT=null;
   const p=ALL.plans,m=p[i].m;
   $('planbar').innerHTML=
     p.map((x,k)=>'<button class="pbtn'+(k===i?' on':'')+'" onclick="pick('+k+')">'+esc(x.name)+'</button>').join('')+
@@ -1032,7 +1048,7 @@ function dropOn(e,i){
 }
 /* ---------- 空き枠にその場で試合を入れる ---------- */
 let ADDCELL=null,ADDA='',ADDB='';
-function addAt(idx){ADDCELL=idx;ADDA='';ADDB='';render(ALL.plans[SEL]);}
+function addAt(idx){ADDCELL=idx;ADDA='';ADDB='';EDITSLOT=null;render(ALL.plans[SEL]);}
 function addCancel(){ADDCELL=null;render(ALL.plans[SEL]);}
 function addSel(which,val){if(which==='a')ADDA=val;else ADDB=val;render(ALL.plans[SEL]);}
 function addDo(idx){
@@ -1057,34 +1073,44 @@ function addWhy(t,cell,court,r,idx){
   if(!fitsCourt(t,court))return 'このコートの対象カテゴリー外';
   return 'この時間はすでに出場';
 }
-function addFormHTML(idx,courts,cell){
-  const r=ALL.plans[SEL].r,teams=ALL.teams,court=courts[cell.ci],cfg=pairCfg();
+/* 「この時間に出せる」を上、それ以外を理由つきで下にまとめた選択肢 */
+function slotOptions(idx,cell,court,curId,other,head){
+  const r=ALL.plans[SEL].r,cfg=pairCfg(),okList=[],ngList=[];
   const left=t=>Math.max(0,t.target-r.played[t.id]);
   const label=t=>esc(t.name)+'（'+r.played[t.id]+'/'+t.target+'本'+(left(t)?'・あと'+left(t):'')+'）';
-  const sel=ALL.teams.filter(t=>String(t.id)===ADDA)[0];
-  const mk=(which,cur,filter)=>{
-    const okList=[],ngList=[];
-    teams.forEach(t=>{
-      if(which==='b'&&String(t.id)===ADDA)return;
-      const o='<option value="'+t.id+'"'+(String(t.id)===cur?' selected':'')+'>';
-      if(!addFree(t,cell,court,r,idx)){ngList.push(o+label(t)+' … '+addWhy(t,cell,court,r,idx)+'</option>');return;}
-      const bad=filter?filter(t):'';
-      if(bad)ngList.push(o+label(t)+' … '+bad+'</option>');else okList.push(o+label(t)+'</option>');
-    });
-    return '<select onchange="addSel(\''+which+'\',this.value)">'+
-      '<option value="">'+(which==='a'?'チームを選ぶ':'相手を選ぶ')+'</option>'+
-      (okList.length?'<optgroup label="この時間に出せる">'+okList.join('')+'</optgroup>':'')+
-      (ngList.length?'<optgroup label="ふつうは組まない">'+ngList.join('')+'</optgroup>':'')+'</select>';
-  };
-  const oppBad=t=>{
-    if(!sel)return '';
-    const st=pairState(sel,t,cfg);
-    return st.allowed?'':(st.locked?'同じクラブ':'対戦しない組み合わせ');
-  };
+  ALL.teams.forEach(t=>{
+    if(other&&t.id===other.id)return;
+    const o='<option value="'+t.id+'"'+(String(t.id)===String(curId)?' selected':'')+'>';
+    if(!addFree(t,cell,court,r,idx)){ngList.push(o+label(t)+' … '+addWhy(t,cell,court,r,idx)+'</option>');return;}
+    const bad=other?pairWhy(other,t,cfg):'';
+    if(bad)ngList.push(o+label(t)+' … '+bad+'</option>');else okList.push(o+label(t)+'</option>');
+  });
+  return head+
+    (okList.length?'<optgroup label="この時間に出せる">'+okList.join('')+'</optgroup>':'')+
+    (ngList.length?'<optgroup label="ふつうは組まない">'+ngList.join('')+'</optgroup>':'');
+}
+function addFormHTML(idx,courts,cell){
+  const court=courts[cell.ci],sel=ALL.teams.filter(t=>String(t.id)===ADDA)[0];
+  const mk=(which,cur,other)=>'<select onchange="addSel(\''+which+'\',this.value)">'+
+    slotOptions(idx,cell,court,cur,other,'<option value="">'+(which==='a'?'チームを選ぶ':'相手を選ぶ')+'</option>')+'</select>';
   return '<div class="addbox">'+mk('a',ADDA,null)+'<span class="vs">vs</span>'+
-    (ADDA?mk('b',ADDB,oppBad):'<select disabled><option>先にチームを選ぶ</option></select>')+
+    (ADDA?mk('b',ADDB,sel):'<select disabled><option>先にチームを選ぶ</option></select>')+
     '<button class="go" onclick="'+stop+'addDo('+idx+')"'+(ADDA&&ADDB?'':' disabled')+'>入れる</button>'+
     '<button onclick="'+stop+'addCancel()">やめる</button></div>';
+}
+/* 完成した表でチーム名を押したときの差し替え */
+let EDITSLOT=null;
+function editSlot(idx,which){EDITSLOT={idx:idx,which:which};ADDCELL=null;render(ALL.plans[SEL]);}
+function editSlotCancel(){EDITSLOT=null;render(ALL.plans[SEL]);}
+function slotFormHTML(m,idx,courts,cell){
+  const court=courts[cell.ci],which=EDITSLOT.which;
+  const cur=which==='a'?m.a:m.b,other=which==='a'?m.b:m.a;
+  const sl='<select onchange="setSlot('+idx+',\''+which+'\',this.value)">'+
+    slotOptions(idx,cell,court,cur.id,other,'')+
+    '<option value="">－ この枠を空きにする</option></select>';
+  const fixed='<button class="tname" onclick="'+stop+'editSlot('+idx+',\''+(which==='a'?'b':'a')+'\')">'+esc(other.name)+'</button>';
+  return '<div class="addbox">'+(which==='a'?sl+'<span class="vs">vs</span>'+fixed:fixed+'<span class="vs">vs</span>'+sl)+
+    '<button onclick="'+stop+'editSlotCancel()">やめる</button></div>';
 }
 const swapAttrs=i=>' data-i="'+i+'" draggable="true"'+
   ' ondragstart="dragStart(event,'+i+')" ondragover="dragOver(event,'+i+')"'+
@@ -1158,8 +1184,11 @@ function cellHTML(m,idx,no,courts,cell){
   if(ADDCELL===idx)return '<td class="card">'+btn+addFormHTML(idx,courts,cell)+'</td>';
   if(!m)return '<td class="blank"'+swapAttrs(idx)+'>'+btn+'（空き）'+
     '<button class="addbtn" onclick="'+stop+'addAt('+idx+')" title="この枠に試合を入れる">＋ 試合を入れる</button></td>';
+  if(EDITSLOT&&EDITSLOT.idx===idx)return '<td class="card">'+btn+'<span class="n">'+no[idx]+'</span>'+
+    slotFormHTML(m,idx,courts,cell)+'</td>';
+  const nm=(w,t)=>'<button class="tname" onclick="'+stop+'editSlot('+idx+',\''+w+'\')" title="押すと他のチームに変えられます">'+esc(t.name)+'</button>';
   return '<td class="card"'+swapAttrs(idx)+'>'+btn+'<span class="n">'+no[idx]+'</span>'+
-    esc(m.a.name)+'<span class="vs">vs</span>'+esc(m.b.name)+flagHTML(idx)+'</td>';
+    nm('a',m.a)+'<span class="vs">vs</span>'+nm('b',m.b)+flagHTML(idx)+'</td>';
 }
 function flagHTML(idx){
   return BAD[idx]?'<span class="flag" title="'+esc(BAD[idx].join(' / '))+'">!</span>':'';
