@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>マッチメイク Studio</title>
+<style>
+:root{
+  --ink:#0F1C24; --paper:#F5F7F4; --card:#fff; --line:#D9E0D8;
+  --turf:#1D6F4A; --chalk:#F2C230; --dim:#5D6E75; --warn:#C4452B;
+  --ok:#1D6F4A; --mid:#B8860B;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6}
+header{background:var(--ink);color:#fff;padding:18px 16px 14px}
+header .in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:21px;font-weight:800;letter-spacing:.02em}
+h1 small{font-size:12px;font-weight:600;color:#9FBFAE;margin-left:9px;letter-spacing:0}
+.hlink{color:#C9DCD3;font-size:12px;font-weight:700;text-decoration:none;border:1px solid #35474F;border-radius:3px;padding:8px 12px;white-space:nowrap}
+.rail{height:3px;background:repeating-linear-gradient(90deg,var(--chalk) 0 26px,transparent 26px 40px)}
+
+#gate{position:fixed;inset:0;background:var(--ink);display:flex;align-items:center;justify-content:center;z-index:99;padding:20px}
+#gate .b{background:#fff;border-radius:6px;padding:22px;width:100%;max-width:330px}
+#gate h2{margin:0 0 12px;font-size:15px}
+#gate input{width:100%;font-size:17px;padding:12px;border:1px solid var(--line);border-radius:3px;font-family:var(--mono)}
+#gate button{width:100%;margin-top:11px;background:var(--turf);border:1px solid var(--turf);color:#fff;font-weight:800;font-size:16px;padding:13px;border-radius:3px;cursor:pointer;font-family:var(--sans)}
+#gate .e{color:#F2A08F;font-size:13px;font-weight:700;min-height:20px;margin-top:9px}
+
+.wrap{max-width:1180px;margin:0 auto;padding:18px 14px 90px}
+section{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 13px;font-size:14px;font-weight:800;letter-spacing:.06em;color:var(--turf)}
+h2 span{color:var(--dim);font-weight:600;letter-spacing:0;margin-left:8px;font-size:12px}
+label{display:block;font-size:12px;color:var(--dim);margin-bottom:3px;font-weight:600}
+input,select,textarea{font-family:var(--sans);font-size:15px;padding:9px 8px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);width:100%;min-height:40px}
+input[type=number],input[type=time],input[type=date]{font-family:var(--mono)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-offset:-1px}
+.grid{display:grid;grid-template-columns:1fr;gap:11px}
+@media(min-width:700px){.grid{grid-template-columns:repeat(3,1fr)}}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{background:#EDF2EC;font-size:11px;color:var(--dim);font-weight:700;padding:7px;text-align:left;border:1px solid var(--line);white-space:nowrap}
+.tbl td{border:1px solid var(--line);padding:5px}
+.tbl td input,.tbl td select{min-height:40px;font-size:14px}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:11px}
+.btn{font-family:var(--sans);font-weight:700;font-size:14px;padding:11px 16px;border:1px solid var(--ink);border-radius:3px;background:#fff;color:var(--ink);cursor:pointer;width:auto;min-height:44px}
+.btn.primary{background:var(--turf);border-color:var(--turf);color:#fff;font-size:17px;padding:14px 34px;font-weight:800}
+.btn.mini{font-size:13px;padding:9px 13px;border-color:var(--line);color:var(--dim)}
+.btn.icon{font-size:12px;padding:8px 10px;border-color:var(--line);color:var(--warn);min-height:40px}
+.hint{font-size:12.5px;color:var(--dim);line-height:1.6;margin:7px 0 0}
+.alert{background:#FBEDE9;border:1px solid #E9C2B7;border-left:3px solid var(--warn);border-radius:3px;padding:11px 13px;margin:11px 0;font-size:13.5px;line-height:1.7}
+.ok{background:#EFF6F1;border:1px solid #C6DFCF;border-left:3px solid var(--turf);border-radius:3px;padding:11px 13px;margin:11px 0;font-size:13.5px;line-height:1.7}
+
+/* テンプレート選択 */
+.tpl{display:grid;grid-template-columns:1fr;gap:9px}
+@media(min-width:700px){.tpl{grid-template-columns:repeat(4,1fr)}}
+.tplcard{border:1px solid var(--line);border-radius:5px;padding:12px;background:#fff;cursor:pointer;text-align:left;font-family:var(--sans);width:100%;min-height:44px}
+.tplcard:hover{background:#F2F6F1}
+.tplcard.on{border-color:var(--turf);background:#EFF6F1;box-shadow:inset 0 0 0 1px var(--turf)}
+.tplcard b{display:block;font-size:14px;font-weight:800;margin-bottom:3px}
+.tplcard span{font-size:11.5px;color:var(--dim);line-height:1.5;display:block}
+.tpldiff{font-size:12px;color:var(--mid);font-weight:700;margin-top:9px}
+
+/* 診断 */
+.scoreTop{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.scoreTop .lead{font-size:13px;color:var(--dim)}
+.total{text-align:right;line-height:1.1}
+.total b{font-size:44px;font-weight:800;font-family:var(--mono)}
+.total i{font-style:normal;font-size:13px;color:var(--dim);margin-left:4px}
+.total .cap{display:block;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.08em;margin-bottom:2px}
+.mcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.mcard{border:1px solid var(--line);border-radius:6px;padding:12px;background:#fff}
+.mcard.lv-ok{background:#F1F8F3;border-color:#C6DFCF}
+.mcard.lv-warn{background:#FDF7E8;border-color:#EBD9A6}
+.mcard.lv-error{background:#FBEDE9;border-color:#E9C2B7}
+.mcard .lb{font-size:12px;color:var(--dim);font-weight:700}
+.mcard .v{font-size:29px;font-weight:800;font-family:var(--mono);line-height:1.2}
+.mcard.lv-ok .v{color:var(--ok)} .mcard.lv-warn .v{color:var(--mid)} .mcard.lv-error .v{color:var(--warn)}
+.mcard .sm{font-size:11.5px;color:var(--dim);line-height:1.5}
+.mcard .wt{font-size:10.5px;color:#9AA8A0;font-family:var(--mono)}
+.blocked{background:#FBEDE9;border:2px solid var(--warn);border-radius:6px;padding:15px;margin-bottom:14px}
+.blocked b{color:var(--warn);font-size:16px;font-weight:800;display:block;margin-bottom:5px}
+.issues{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.issue{display:flex;gap:9px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer;background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left;font-family:var(--sans);min-height:44px}
+.issue:hover{background:#F2F6F1}
+.issue .lv{font-size:10px;font-weight:800;border-radius:2px;padding:3px 7px;white-space:nowrap;flex:0 0 auto;margin-top:2px}
+.lv.error{background:#F7E3DF;color:#A33520}
+.lv.warn{background:#FBF0D5;color:#7A5B0B}
+.issue .tx b{display:block;font-weight:700}
+.issue .tx span{font-size:12px;color:var(--dim)}
+
+/* 進行表 */
+.sched{width:100%;border-collapse:collapse;font-size:15px;min-width:330px}
+.sched th{background:var(--turf);color:#fff;font-size:12px;padding:7px 8px;border:1px solid #17603F}
+.sched td{border:1px solid var(--line);padding:7px 8px;text-align:center;vertical-align:middle}
+.sched td.time{font-family:var(--mono);white-space:nowrap;font-weight:600;background:#F7F9F6;width:112px;font-size:14px}
+.sched td.card{text-align:left;font-weight:600;cursor:grab}
+.sched td.card:active{cursor:grabbing}
+.sched td.blank{color:#A9B5AF;background:#FAFBFA;font-weight:400;font-size:13px}
+.sched td.card .n{font-family:var(--mono);font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:2px;padding:0 4px;margin-right:6px;font-weight:400}
+.sched td.pick{outline:2px solid var(--chalk);outline-offset:-2px;background:#FEF8E3}
+.sched td.hit{outline:3px solid var(--warn);outline-offset:-3px}
+.sched tr.home td.card{background:#FFFCF0}
+.vs{color:var(--dim);font-weight:400;margin:0 6px;font-size:13px}
+.flag{display:inline-block;background:var(--warn);color:#fff;font-size:10px;font-weight:800;border-radius:2px;padding:0 5px;margin-left:6px;cursor:help}
+.vname{font-size:15px;font-weight:800;margin:16px 0 6px;color:var(--turf)}
+.vname span{font-weight:400;font-size:12px;color:var(--dim);margin-left:8px}
+.tname{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--ink);background:none;border:none;
+  border-bottom:1px dashed #AFC0B4;padding:11px 3px;cursor:pointer;border-radius:0;width:auto;min-height:44px;text-align:left}
+.tname:hover{background:#EFF6F1;border-bottom-color:var(--turf);color:var(--turf)}
+.addbtn{font-family:var(--sans);font-size:13px;font-weight:700;padding:11px 15px;border:1px solid var(--turf);
+  background:#fff;color:var(--turf);border-radius:22px;cursor:pointer;width:auto;margin-left:9px;min-height:44px}
+.addbtn:hover{background:#EFF6F1}
+.addbox{display:flex;align-items:center;gap:7px;flex-wrap:wrap;text-align:left;padding:3px 0}
+.addbox select{width:auto;min-width:132px;max-width:200px;font-size:14px;min-height:44px}
+.addbox button{font-family:var(--sans);font-size:14px;font-weight:700;padding:10px 16px;border:1px solid var(--line);
+  background:#fff;color:var(--ink);border-radius:3px;cursor:pointer;width:auto;min-height:44px}
+.addbox .go{background:var(--turf);border-color:var(--turf);color:#fff}
+.addbox .go:disabled{opacity:.45;cursor:not-allowed}
+.planbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.pbtn{font-family:var(--sans);font-size:13px;font-weight:700;padding:9px 15px;border:1px solid var(--line);background:#fff;color:var(--dim);border-radius:20px;cursor:pointer;width:auto;min-height:44px}
+.pbtn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.pbtn.re{border-style:dashed}
+
+/* 対戦してよい組み合わせ */
+.pairGrid{display:grid;grid-template-columns:1fr;gap:10px}
+.pairCol{background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.pairHead{font-size:12px;font-weight:700;color:var(--dim);padding:9px 11px;border-bottom:1px solid var(--line);background:#F7F9F6}
+.pairRow{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:11px;border-bottom:1px solid var(--line);cursor:pointer;min-height:44px;background:#fff;width:100%;text-align:left;font-family:var(--sans);border-left:none;border-right:none;border-top:none}
+.pairRow:last-child{border-bottom:none}
+.pairRow:hover{background:#F2F6F1}
+.pairRow.on{background:#EFF6F1}
+.pairRow.on .pnm{color:var(--turf)}
+.pairRow[disabled]{cursor:not-allowed;opacity:.5}
+.pairRow .pnm{font-size:14px;font-weight:700}
+.pairRow .pmeta{font-size:11px;color:var(--dim);font-weight:400;margin-left:7px;font-family:var(--mono)}
+.ptag{font-size:11px;font-weight:700;border-radius:20px;padding:4px 11px;white-space:nowrap;flex:0 0 auto}
+.ptag.yes{background:#E4F0E8;color:#1D6F4A}
+.ptag.no{background:#F7E3DF;color:#A33520}
+.ptag.lock{background:#EFEFEC;color:#8A9490}
+.ptag.few{background:var(--chalk);color:#3A2E05}
+@media (min-width:760px){.pairGrid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}}
+
+@media print{
+  header,.noprint,#gate{display:none!important}
+  body{background:#fff;font-size:11pt}
+  .wrap{padding:0;max-width:none}
+  section{border:none;padding:0;margin:0 0 8px}
+  section>h2{display:none}
+  .sched th{background:#fff!important;color:#000!important;border:none;border-bottom:2px solid #000}
+  .sched td{border:1px solid #888}
+  .sched td.time,.sched tr.home td.card,.sched td.blank{background:#fff!important}
+  .tname{border-bottom:none;padding:0;font-size:inherit;color:#000}
+  .flag,.addbtn{display:none!important}
+}
+</style>
+</head>
+<body>
+
+<div id="gate"><div class="b">
+  <h2>マッチメイク Studio</h2>
+  <input id="pw" type="password" inputmode="numeric" placeholder="パスワード" autocomplete="off">
+  <button onclick="unlock()">開く</button>
+  <div class="e" id="pwe"></div>
+</div></div>
+
+<header><div class="in">
+  <h1>マッチメイク Studio<small id="tplName">フェスティバル</small></h1>
+  <a class="hlink" href="../">1日用のマッチメイカー →</a>
+</div></header>
+<div class="rail"></div>
+
+<div class="wrap">
+
+<section class="noprint">
+  <h2>開催の形<span>選ぶと初期値が入ります。あとから自由に変えられます</span></h2>
+  <div class="tpl" id="tplBox"></div>
+  <div class="tpldiff" id="tplDiff"></div>
+</section>
+
+<section class="noprint">
+  <h2>開催情報</h2>
+  <div class="grid">
+    <div><label>日付</label><input type="date" id="cfgDate"></div>
+    <div><label>大会・行事名</label><input id="cfgTitle" value="練習試合"></div>
+    <div><label>形式</label><select id="cfgFormat"><option value="8">8人制</option><option value="11" selected>11人制</option></select></div>
+    <div><label>カテゴリー差の許容</label><select id="cfgCat">
+      <option value="0">同カテゴリーのみ</option><option value="1" selected>±1学年まで</option>
+      <option value="2">±2学年まで</option><option value="9">制限なし</option></select></div>
+    <div><label>連戦（続けて2本）</label><select id="cfgBack">
+      <option value="soft" selected>なるべく避ける</option><option value="hard">禁止（必ず1本空ける）</option>
+      <option value="free">気にしない</option></select></div>
+    <div><label>同じカードの上限</label><input type="number" id="cfgSame" value="2" min="1" max="5"></div>
+    <div><label>同じクラブ同士の対戦</label><select id="cfgClub">
+      <option value="no" selected>禁止</option><option value="soft">なるべく避ける</option>
+      <option value="ok">許可</option></select></div>
+    <div><label>ランク（A/B/C）</label><select id="cfgRank">
+      <option value="only">同ランクのみ</option><option value="pref" selected>原則 同ランク（足りなければ崩す）</option>
+      <option value="free">自由</option></select></div>
+    <div><label title="A・Bなど複数チームで参加するクラブがいるとき、同じクラブとばかり当たらないようにします">対戦相手のばらけ</label><select id="cfgMix">
+      <option value="1">なるべく色々なクラブと</option>
+      <option value="3" selected>できる限り色々なクラブと</option>
+      <option value="0">気にしない</option></select></div>
+    <div style="grid-column:1/-1"><label>印刷用の連絡事項（任意）</label>
+      <input id="cfgNote" placeholder="例）駐車場は第2グラウンド側／ゴミは各チームでお持ち帰りください"></div>
+  </div>
+</section>
+
+<section class="noprint">
+  <h2>会場<span>離れた会場を使うときは、間の移動時間を入れてください</span></h2>
+  <div class="scroll">
+  <table class="tbl">
+    <thead><tr><th style="min-width:170px">会場名</th><th style="min-width:220px">ここへの移動時間（分）</th><th></th></tr></thead>
+    <tbody id="venueBody"></tbody>
+  </table></div>
+  <div class="row-actions">
+    <button class="btn mini" onclick="addVenue()">＋ 会場を追加</button>
+    <span class="hint" id="venueHint"></span>
+  </div>
+</section>
+
+<section class="noprint">
+  <h2>面（コート）<span>面ごとに使用時間・試合時間・対象カテゴリーを変えられます</span></h2>
+  <div class="scroll">
+  <table class="tbl">
+    <thead><tr>
+      <th style="min-width:130px">面の名前</th><th style="min-width:120px">会場</th>
+      <th>使用開始</th><th>使用終了</th><th title="1本の試合時間">試合</th><th title="次の試合の開始間隔">間隔</th>
+      <th style="min-width:110px" title="空欄なら制限なし。例）U15,U14">対象カテゴリー</th><th></th>
+    </tr></thead>
+    <tbody id="courtBody"></tbody>
+  </table></div>
+  <div class="row-actions">
+    <button class="btn mini" onclick="addCourt()">＋ 面を追加</button>
+    <span class="hint" id="courtHint"></span>
+  </div>
+</section>
+
+<section class="noprint">
+  <h2>参加チーム<span>希望本数の合計が偶数だとキレイに埋まります</span></h2>
+  <div class="scroll">
+  <table class="tbl">
+    <thead><tr>
+      <th style="min-width:140px">チーム名</th><th title="同じクラブ同士は対戦しません。空欄ならチーム名から自動判定">クラブ</th>
+      <th title="A / B / C。空欄はどのランクとも対戦できます">ランク</th><th>カテゴリー</th><th>人数</th>
+      <th title="この時刻より前には組みません">初戦KO</th><th title="この時刻より後には組みません">最終KO</th><th>希望本数</th>
+      <th title="人数が多く2面同時に出せる">2面</th>
+      <th title="連戦してでも早く帰りたいチーム。連戦の減点対象から外します">連戦OK</th>
+      <th title="自クラブとして強調">自</th><th></th>
+    </tr></thead>
+    <tbody id="teamBody"></tbody>
+  </table></div>
+  <div class="row-actions">
+    <button class="btn mini" onclick="addTeam()">＋ チームを追加</button>
+    <button class="btn mini" onclick="autoClub(true)">クラブ / ランクを自動判定</button>
+    <button class="btn mini" onclick="saveJSON()">設定を保存</button>
+    <button class="btn mini" onclick="document.getElementById('loadFile').click()">設定を読込</button>
+    <input type="file" id="loadFile" accept=".json" style="display:none" onchange="loadJSON(this)">
+    <span class="hint" id="teamHint"></span>
+  </div>
+</section>
+
+<section class="noprint">
+  <h2>対戦してよい組み合わせ<span>ふだんは触らなくてOK。「ここは当てたい／やめたい」がある時だけ</span></h2>
+  <div class="row-actions" style="margin:0 0 10px">
+    <button class="btn mini" id="pairToggle" onclick="togglePairs()">組み合わせを指定する</button>
+    <span class="hint" id="pairHint"></span>
+  </div>
+  <div id="pairBox" style="display:none">
+    <div class="row-actions" style="margin:0 0 10px">
+      <button class="btn mini" onclick="pairPreset('reset')">ルールどおりに戻す</button>
+      <button class="btn mini" onclick="pairPreset('all')">全部 対戦する</button>
+    </div>
+    <div class="pairGrid">
+      <div class="pairCol" id="pairLeft"></div>
+      <div class="pairCol">
+        <div class="pairHead" id="pairRightHead"></div>
+        <div id="pairRight"></div>
+      </div>
+    </div>
+    <p class="hint" id="pairSum"></p>
+  </div>
+</section>
+
+<section class="noprint" id="preSec">
+  <h2>組む前のチェック<span>物理的に組めるかどうかを先に確かめます</span></h2>
+  <div id="preBox"></div>
+  <div class="row-actions">
+    <button class="btn mini" onclick="preCheck()">チェックする</button>
+  </div>
+</section>
+
+<div class="noprint" style="text-align:center;margin:22px 0">
+  <button class="btn primary" onclick="run()">スケジュールを作る</button>
+</div>
+
+<div id="out" style="display:none">
+  <section class="noprint" id="diagSec">
+    <h2>生成結果の診断</h2>
+    <div id="diag"></div>
+  </section>
+
+  <section>
+    <h2>進行表</h2>
+    <div id="head" style="font-size:13px;margin-bottom:10px"></div>
+    <div class="planbar noprint" id="planbar"></div>
+    <div id="tables"></div>
+    <p class="hint noprint">チーム名を押すとそのチームだけ変えられます。カードのドラッグ／タップ2回で試合ごと入れ替え。空き枠の「＋ 試合を入れる」でその場に足せます。</p>
+    <div id="pteams"></div>
+    <div id="pnote"></div>
+    <div class="row-actions noprint">
+      <button class="btn" onclick="window.print()">印刷 / PDF</button>
+      <button class="btn" onclick="copyText()">テキストでコピー</button>
+      <button class="btn mini" onclick="saveJSON()">設定を保存</button>
+    </div>
+  </section>
+</div>
+
+</div>
+
+<script src="score.js?v=20260811g"></script>
+<script src="app.js?v=20260811g"></script>
+</body>
+</html>
