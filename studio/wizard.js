@@ -155,9 +155,9 @@ function drawWizard(){
     });
     const c0 = rows.length ? rows[0] : null;
     if(c0) h += '<div class="noteRow"><label>使用時間</label>' +
-      '<span class="ni">開始 <input type="time" value="' + c0.querySelector('.c-from').value +
+      '<span class="ni">開始 <input type="time" step="900" value="' + c0.querySelector('.c-from').value +
         '" onchange="wizAllCourts(\'c-from\',this.value);autoSave()"></span>' +
-      '<span class="ni">終了 <input type="time" value="' + c0.querySelector('.c-to').value +
+      '<span class="ni">終了 <input type="time" step="900" value="' + c0.querySelector('.c-to').value +
         '" onchange="wizAllCourts(\'c-to\',this.value);autoSave()"></span></div>' +
       '<div class="noteRow"><label>1試合の長さ</label>' +
       '<input type="number" min="5" max="120" value="' + c0.querySelector('.c-match').value +
@@ -175,8 +175,10 @@ function drawWizard(){
     h += sel('cfgBack','連戦', [['soft','なるべく避ける'],['hard','禁止'],['free','気にしない']]);
     h += sel('cfgMix','対戦相手', [['3','できるだけ色々なクラブと'],['1','なるべく色々なクラブと'],['0','気にしない']]);
     h += '<div class="noteRow"><label>同じカードの上限</label>' +
-      [1,2,3].map(v => '<button class="chip' + (+$('cfgSame').value === v ? ' on' : '') +
-        '" onclick="$(\'cfgSame\').value=' + v + ';drawWizard();autoSave()">' + v + '回まで</button>').join('') + '</div>';
+      [[1,'1回まで'],[2,'2回まで'],[3,'3回まで'],[99,'制限なし']].map(v =>
+        '<button class="chip' + (+$('cfgSame').value === v[0] ? ' on' : '') +
+        '" onclick="$(\'cfgSame\').value=' + v[0] + ';drawWizard();autoSave()">' + v[1] + '</button>').join('') +
+      '<span class="hint" style="margin:0">3チームだけなら「制限なし」</span></div>';
     h += '<p class="hint">チームごとの事情（スタッフ1名・上の学年OK・午前のみなど）は、下の<b>参加チームの「特記」</b>で入れてください。</p>';
   }
 

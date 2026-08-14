@@ -28,8 +28,8 @@ const TEMPLATES = [
    cfg:{cfgCat:'1', cfgBack:'soft', cfgSame:'1', cfgClub:'no', cfgRank:'pref', cfgMix:'3'}},
   {key:'camp', name:'合宿・遠征受け入れ', desc:'期間もの。相手が偏らないことを最優先',
    cfg:{cfgCat:'1', cfgBack:'free', cfgSame:'1', cfgClub:'no', cfgRank:'pref', cfgMix:'3'}, soon:true},
-  {key:'league', name:'リーグ戦', desc:'総当たりを先に決めてから時間割に置く',
-   cfg:{cfgCat:'0', cfgBack:'hard', cfgSame:'1', cfgClub:'ok', cfgRank:'free', cfgMix:'0'}, soon:true}
+  {key:'league', name:'リーグ戦', desc:'総当たり。下の「リーグ戦」で組み合わせを作る',
+   cfg:{cfgCat:'0', cfgBack:'soft', cfgSame:'1', cfgClub:'no', cfgRank:'free', cfgMix:'0'}}
 ];
 let TPL = 'festival', TPLBASE = {};
 function drawTpl(){
@@ -105,8 +105,8 @@ function addCourt(d){
   tr.innerHTML =
     '<td><input class="c-name" value="' + esc(d.name) + '" placeholder="例）Aコート"></td>' +
     '<td><select class="c-venue"></select></td>' +
-    '<td><input class="c-from" type="time" value="' + d.from + '" style="width:104px"></td>' +
-    '<td><input class="c-to" type="time" value="' + d.to + '" style="width:104px"></td>' +
+    '<td><input class="c-from" type="time" step="900" value="' + d.from + '" style="width:104px"></td>' +
+    '<td><input class="c-to" type="time" step="900" value="' + d.to + '" style="width:104px"></td>' +
     '<td><input class="c-match" type="number" value="' + d.match + '" min="5" max="120" style="width:62px"></td>' +
     '<td><input class="c-int" type="number" value="' + d.interval + '" min="5" max="180" style="width:62px"></td>' +
     '<td><input class="c-cats" value="' + esc(d.cats || '') + '" placeholder="制限なし"></td>' +
@@ -140,12 +140,33 @@ function readCourts(){
 }
 
 /* ---------- チーム ---------- */
+/* チームのKO可能時間の既定値。面の使用時間に合わせる。
+   最終KOは「使用終了 － 試合時間」＝最後にキックオフできる時刻 */
+function defaultWindow(){
+  const cs = readCourts().filter(c => c.from != null && c.to != null && c.to > c.from);
+  if(!cs.length) return {from:'08:30', to:'12:00'};
+  const from = Math.min.apply(null, cs.map(c => c.from));
+  const to = Math.max.apply(null, cs.map(c => c.to - c.match));
+  return {from:toHM2(from), to:toHM2(Math.max(from, to))};
+}
+/* 全チームの時間を面に合わせる（押したときだけ動く。勝手には書き換えない） */
+function fitTeamTimes(){
+  const w = defaultWindow(), rows = [...$('teamBody').querySelectorAll('tr')];
+  if(!rows.length) return;
+  if(!confirm('全チームの初戦KO・最終KOを ' + w.from + '〜' + w.to + ' にそろえます。よろしいですか？\n（このあと個別に直せます）')) return;
+  rows.forEach(tr => {tr.querySelector('.t-from').value = w.from; tr.querySelector('.t-to').value = w.to;});
+  refreshHint();
+}
 function splitRank(n){
   const m = String(n).match(/^(.+?[0-9\s\-‐・])\s*([ABC])$/);
   return m ? {club:m[1].trim(), rank:m[2]} : {club:String(n), rank:''};
 }
 function addTeam(d){
-  d = d || {name:'', cat:'U15', players:15, from:'08:30', to:'12:00', target:3};
+  const w = defaultWindow();
+  d = Object.assign({name:'', cat:'U15', players:15, target:3}, d || {});
+  /* 時間の指定が無ければ面の使用時間に合わせる */
+  if(!d.from) d.from = w.from;
+  if(!d.to) d.to = w.to;
   const sr = splitRank(d.name);
   const tr = document.createElement('tr');
   tr.innerHTML =
@@ -154,8 +175,8 @@ function addTeam(d){
     '<td><input class="t-rank" value="' + esc(d.rank !== undefined ? d.rank : sr.rank) + '" style="width:44px;text-align:center" placeholder="－"></td>' +
     '<td><input class="t-cat" value="' + esc(d.cat) + '" style="width:62px"></td>' +
     '<td><input class="t-num" type="number" value="' + d.players + '" min="1" style="width:56px"></td>' +
-    '<td><input class="t-from" type="time" value="' + d.from + '" style="width:104px"></td>' +
-    '<td><input class="t-to" type="time" value="' + d.to + '" style="width:104px"></td>' +
+    '<td><input class="t-from" type="time" step="900" value="' + d.from + '" style="width:104px"></td>' +
+    '<td><input class="t-to" type="time" step="900" value="' + d.to + '" style="width:104px"></td>' +
     '<td><input class="t-tgt" type="number" value="' + d.target + '" min="0" max="12" style="width:52px"></td>' +
     '<td style="text-align:center"><input class="t-dual" type="checkbox" ' + (d.dual ? 'checked' : '') + ' style="width:auto"></td>' +
     '<td style="text-align:center"><input class="t-burst" type="checkbox" ' + (d.burst ? 'checked' : '') + ' style="width:auto"></td>' +
@@ -264,8 +285,8 @@ function drawNotePanel(){
       esc(c.label) + '</button>').join('') + '</div>';
   /* 時間の申告 */
   h += '<div class="noteRow"><label>出られる時間</label>' +
-    '<span class="ni">初戦KO <input type="time" value="' + toHM2(t.from) + '" onchange="noteTime(\'from\',this.value)"></span>' +
-    '<span class="ni">最終KO <input type="time" value="' + toHM2(t.to) + '" onchange="noteTime(\'to\',this.value)"></span>' +
+    '<span class="ni">初戦KO <input type="time" step="900" value="' + toHM2(t.from) + '" onchange="noteTime(\'from\',this.value)"></span>' +
+    '<span class="ni">最終KO <input type="time" step="900" value="' + toHM2(t.to) + '" onchange="noteTime(\'to\',this.value)"></span>' +
     '<button class="chip" onclick="noteSet(\'am\',true)">午前のみにする</button></div>';
   /* 数値の追加入力 */
   if(on('staff')) h += '<div class="noteRow"><label>同時に出せる試合数</label>' +
@@ -611,6 +632,100 @@ const PLANS = [
   {name:'同学年優先', desc:'カテゴリー差のある対戦を避ける', w:{cat:45, rep:14, club:24, back:8, move:14, noise:6}}
 ];
 
+/* ---------- リーグ戦（総当たり） ----------
+   対戦カードを先に決めて「必ず当てる」として登録し、希望本数を自動で設定する。
+   こうすると生成器・採点・手直しがそのまま使える（別の仕組みを作らない） */
+function leagueGroups(){
+  const teams = readTeams(), by = $('lgBy') ? $('lgBy').value : 'cat', gs = {};
+  teams.forEach(t => {
+    const k = by === 'all' ? '全チーム'
+            : by === 'rank' ? (t.catRaw || '未設定') + (t.rank ? ' ' + t.rank : '')
+            : (t.catRaw || '未設定');
+    (gs[k] = gs[k] || []).push(t);
+  });
+  return Object.keys(gs).map(k => ({name:k, teams:gs[k]})).filter(g => g.teams.length >= 2);
+}
+function leaguePairs(g){
+  const out = [];
+  for(let i=0;i<g.teams.length;i++) for(let j=i+1;j<g.teams.length;j++){
+    const a = g.teams[i], b = g.teams[j];
+    if(sameClubP(a,b) && $('cfgClub').value === 'no') continue;  /* 同じクラブ同士は組まない */
+    out.push([a,b]);
+  }
+  return out;
+}
+function drawLeague(){
+  const gs = leagueGroups();
+  if(!gs.length){$('leagueBox').innerHTML = '<div class="alert">2チーム以上のグループがありません。参加チームを入れてください。</div>';return;}
+  const cells = makeCells(readCourts());
+  let total = 0, h = '<div class="scroll"><table class="tbl"><thead><tr>' +
+    '<th>グループ</th><th>チーム</th><th>試合数</th><th>1チームあたり</th></tr></thead><tbody>';
+  gs.forEach(g => {
+    const ps = leaguePairs(g); total += ps.length;
+    h += '<tr><td style="font-weight:700;white-space:nowrap">' + esc(g.name) + '</td>' +
+      '<td style="font-size:12.5px">' + g.teams.map(t => esc(t.name)).join('、') + '</td>' +
+      '<td style="white-space:nowrap">' + ps.length + '試合</td>' +
+      '<td style="white-space:nowrap">' + (g.teams.length - 1) + '本</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<div class="' + (total > cells.length ? 'alert' : 'ok') + '" style="margin-top:11px">' +
+    '<b>合計 ' + total + '試合／枠は ' + cells.length + '</b>　' +
+    (total > cells.length
+      ? '枠が' + (total - cells.length) + '試合ぶん足りません。使用時間を延ばすか面を増やすか、グループを分けてください。'
+      : '枠は足りています。') + '</div>';
+  h += '<div class="row-actions"><button class="btn" onclick="applyLeague()">この組み合わせで設定する</button>' +
+    '<span class="hint" style="margin:0">希望本数と「必ず当てる」を自動で入れます。あとから直せます</span></div>';
+  $('leagueBox').innerHTML = h;
+}
+function applyLeague(){
+  const gs = leagueGroups();
+  if(!gs.length) return;
+  if(!confirm('総当たりのカードを設定します。\n・各チームの希望本数を「グループの人数−1」にそろえます\n・全カードを「必ず当てる」にします\n・同じカードの上限を1回にします\nよろしいですか？')) return;
+  PAIROV = {};
+  const rows = [...$('teamBody').querySelectorAll('tr')];
+  gs.forEach(g => {
+    leaguePairs(g).forEach(p => PAIROV[povk(p[0],p[1])] = 'want');
+    g.teams.forEach(t => {
+      const n = leaguePairs(g).filter(p => p[0].id === t.id || p[1].id === t.id).length;
+      if(rows[t.id]) rows[t.id].querySelector('.t-tgt').value = n;
+    });
+  });
+  $('cfgSame').value = '1';
+  refreshHint(); drawLeague();
+  alert('設定しました。「スケジュールを作る」を押してください。');
+}
+/* 星取表：どのカードが組めて、どれが残っているか */
+function leagueTable(r){
+  const gs = leagueGroups();
+  const wants = Object.keys(PAIROV).filter(k => PAIROV[k] === 'want');
+  if(!wants.length || !gs.length) return '';
+  const done = {};
+  r.asg.forEach((m,i) => {if(m) done[povk(m.a,m.b)] = toHM(r.cells[i].start);});
+  let h = '';
+  gs.forEach(g => {
+    const ps = leaguePairs(g).filter(p => PAIROV[povk(p[0],p[1])] === 'want');
+    if(!ps.length) return;
+    h += '<div class="vname">' + esc(g.name) + ' の対戦表<span>' +
+      ps.filter(p => done[povk(p[0],p[1])]).length + ' / ' + ps.length + '試合が入りました</span></div>';
+    h += '<div class="scroll"><table class="tbl"><thead><tr><th></th>' +
+      g.teams.map(t => '<th style="font-size:11px">' + esc(t.name) + '</th>').join('') + '</tr></thead><tbody>';
+    g.teams.forEach(a => {
+      h += '<tr><th style="text-align:left;white-space:nowrap">' + esc(a.name) + '</th>';
+      g.teams.forEach(b => {
+        if(a.id === b.id){h += '<td style="background:#EFEFEC"></td>';return;}
+        const k = povk(a,b);
+        if(PAIROV[k] !== 'want'){h += '<td style="color:#B6BEB8;text-align:center">—</td>';return;}
+        h += done[k]
+          ? '<td style="text-align:center;font-family:var(--mono);font-size:12px;background:#EFF6F1;color:#1D6F4A">' + done[k] + '</td>'
+          : '<td style="text-align:center;background:#FBEDE9;color:#A33520;font-size:11px">未</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+  });
+  return h;
+}
+
 /* ---------- 組む前のチェック ---------- */
 function gather(){
   const teams = readTeams(), courts = readCourts();
@@ -889,7 +1004,8 @@ function render(){
       (ms.length ? ms.map(x => '<b style="font-family:var(--mono)">' + toHM(x.s) + '</b>' + (multi ? '[' + esc(x.c.venueName) + ']' : '') + esc(x.o)).join('　／　') : '—') +
       '</td></tr>';
   });
-  $('pteams').innerHTML = pt + '</tbody></table></div>';
+  $('pteams').innerHTML = pt + '</tbody></table></div>' + leagueTable(r);
+  drawGantt(r, courts, teams);
   const note = $('cfgNote').value.trim();
   /* チームごとの「その他」は生成に効かないので、必ず紙に出す */
   const tn = teams.filter(t => t.note).map(t => esc(t.name) + '：' + esc(t.note));
@@ -897,6 +1013,56 @@ function render(){
     (note ? '<div class="ok" style="margin-top:12px">' + esc(note).replace(/／/g,'<br>') + '</div>' : '') +
     (tn.length ? '<div class="ok" style="margin-top:12px"><b>チームからの連絡</b><br>' + tn.join('<br>') + '</div>' : '');
 }
+/* ---------- チーム別タイムライン ----------
+   1日の過ごし方を1本の帯で見せる。白い部分＝出られない時間、
+   色の付いた四角＝試合、斜線＝次の試合までの空き（分を表示） */
+const CCOL = ['#1D6F4A','#2E6F9E','#8A5A2B','#7A4F8F','#B0562A','#3C7F6E'];
+function drawGantt(r,courts,teams){
+  if(!$('gantt')) return;
+  const t0 = Math.min.apply(null, courts.map(c => c.from));
+  const t1 = Math.max.apply(null, courts.map(c => c.to));
+  const span = Math.max(1, t1 - t0);
+  const pct = m => (m - t0) / span * 100;
+  let g = '';
+  teams.forEach(t => {
+    let b = '';
+    /* 出られない時間を白でふさぐ */
+    if(t.from > t0) b += '<div class="gwin" style="left:0;width:' + pct(Math.min(t.from,t1)) + '%"></div>';
+    const leave = t.to + Math.max.apply(null, courts.map(c => c.match));
+    if(leave < t1) b += '<div class="gwin" style="left:' + pct(Math.max(leave,t0)) + '%;right:0"></div>';
+    /* 試合 */
+    const ms = [];
+    r.asg.forEach(m => {
+      if(!m || (m.a.id !== t.id && m.b.id !== t.id)) return;
+      ms.push(m);
+    });
+    ms.sort((x,y) => x.cell.start - y.cell.start);
+    /* 試合と試合のあいだ（空き時間）。30分以上あるものだけ数字を出す */
+    for(let i=1;i<ms.length;i++){
+      const gapS = ms[i-1].cell.end, gapE = ms[i].cell.start, len = gapE - gapS;
+      if(len <= 0) continue;
+      b += '<div class="ggap" style="left:' + pct(gapS) + '%;width:' + (len/span*100) + '%">' +
+        (len >= 30 ? '<b>' + (len >= 60 ? Math.floor(len/60) + '時間' + (len%60 ? len%60 + '分' : '') : len + '分') + '</b>' : '') +
+        '</div>';
+    }
+    ms.forEach(m => {
+      const o = m.a.id === t.id ? m.b : m.a, c = courts[m.cell.ci];
+      b += '<div class="gblk" style="left:' + pct(m.cell.start) + '%;width:' + ((m.cell.end - m.cell.start)/span*100) +
+        '%;background:' + CCOL[c.ci % CCOL.length] + '" title="' + toHM(m.cell.start) + ' ' +
+        esc(c.venueName) + ' ' + esc(c.name) + ' vs ' + esc(o.name) + '">' + toHM(m.cell.start) + '</div>';
+    });
+    g += '<div class="gname">' + (t.home ? '<span class="ptag yes">自</span> ' : '') + esc(t.name) +
+      '<span style="color:var(--dim);font-weight:400;font-size:11px"> ' + ms.length + '本</span></div>' +
+      '<div class="gtrack">' + b + '</div>';
+  });
+  $('gantt').innerHTML = g;
+  $('axis').innerHTML = '<span>' + toHM(t0) + '</span><span>' + toHM(t0 + Math.round(span/2)) + '</span><span>' + toHM(t1) + '</span>';
+  $('legend').innerHTML = courts.map(c => '<span><i style="background:' + CCOL[c.ci % CCOL.length] + '"></i>' +
+    esc(c.venueName) + ' ' + esc(c.name) + '</span>').join('') +
+    '<span><i style="background:#fff;border:1px solid var(--line)"></i>出られない時間</span>' +
+    '<span><i style="background:#F7E9C4"></i>試合の間の空き</span>';
+}
+
 const stop = 'event.stopPropagation();';
 const swapAttrs = i => ' data-i="' + i + '" draggable="true"' +
   ' ondragstart="dragStart(event,' + i + ')" ondragover="dragOver(event,' + i + ')"' +
