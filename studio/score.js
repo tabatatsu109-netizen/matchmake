@@ -15,10 +15,10 @@ const clamp = s => Math.max(0, Math.min(100, s));
 
 /* 開催の形ごとの重み。実装していない指標は書かない（合計で割るので影響しない） */
 const WEIGHTS = {
-  practice: {fill:35, cat:25, mix:10, span:10, btb:15, move:0},
-  festival: {fill:30, cat:20, mix:20, span:10, btb:10, move:5},
-  camp:     {fill:30, cat:20, mix:20, span:12, btb:8,  move:5},
-  league:   {fill:0,  cat:20, mix:0,  span:20, btb:20, move:20}
+  practice: {fill:35, cat:25, mix:10, span:10, btb:15, move:0,  want:10},
+  festival: {fill:30, cat:20, mix:20, span:10, btb:10, move:5,  want:10},
+  camp:     {fill:30, cat:20, mix:20, span:12, btb:8,  move:5,  want:10},
+  league:   {fill:0,  cat:20, mix:0,  span:20, btb:20, move:20, want:10}
 };
 
 /* ---------- 理論上限 ----------
@@ -44,11 +44,19 @@ function capacity(inp){
     if(feasible < t.target){
       const opp = teams.filter(o => o.id !== t.id && allowed(t,o));
       const ms = inp.maxSame || 99;
-      reason = opp.length === 0 ? '対戦できる相手が1チームもいません'
-             : n === 0 ? '出られる時間に相手がいません'
-             : opp.length * ms < t.target
-               ? '相手が' + opp.length + 'チームで、同じカードの上限が' + ms + '回なので最大' + (opp.length*ms) + '本です'
-               : '相手側の本数も埋まるため、最大' + feasible + '本までです';
+      /* 同じクラブが同時に出せる試合数。スタッフ1名なら、その時間帯を分け合うことになる */
+      const lim = inp.limits && inp.clubOf ? inp.limits[inp.clubOf(t)] : 0;
+      const mates = (lim && inp.clubOf) ? teams.filter(o => inp.clubOf(o) === inp.clubOf(t)).length : 1;
+      const byTime = [...new Set(live.filter(c => avail(t,c)).map(c => c.start))].length;
+      reason =
+        opp.length === 0 ? '対戦できる相手が1チームもいません'
+      : n === 0 ? '出られる時間に相手がいません'
+      : (lim && mates > 1 && Math.floor(byTime * lim / mates) < t.target)
+        ? '出られる時間帯が' + byTime + 'コマで、同じクラブ' + mates + 'チームが同時' + lim + '試合までを分け合うため、最大' + feasible + '本です'
+      : byTime < t.target ? '出られる時間帯が' + byTime + 'コマしかありません'
+      : opp.length * ms < t.target
+        ? '相手が' + opp.length + 'チームで、同じカードの上限が' + ms + '回なので最大' + (opp.length*ms) + '本です'
+      : '相手側の本数も埋まるため、最大' + feasible + '本までです';
     }
     return {team:t, slots:n, feasible:feasible, reason:reason};
   });
@@ -67,7 +75,7 @@ function capacity(inp){
 /* ---------- 診断 ---------- */
 function diagnose(inp){
   const {teams, courts, cells, asg, cfg, avail, allowed, travel, venueOf,
-         catDiff, sameClub, orgOf, explicitOk, template} = inp;
+         catDiff, catOK, sameClub, orgOf, explicitOk, template, wants, clubOf, staffLimits} = inp;
   const w = WEIGHTS[template] || WEIGHTS.festival;
   const hard = [], issues = [];
   const played = {}, mine = {};
@@ -101,6 +109,27 @@ function diagnose(inp){
     });
   });
 
+  /* スタッフが足りないのに同時刻に複数試合（H7）。クラブ単位で見る */
+  const limits = staffLimits ? staffLimits(teams) : {};
+  if(Object.keys(limits).length){
+    const starts = [...new Set(matches.map(x => x.m.cell.start))].sort((a,b) => a-b);
+    Object.keys(limits).forEach(club => {
+      starts.forEach(st => {
+        const hit = matches.filter(x => {
+          const c = x.m.cell;
+          if(!(c.start < st + 1 && st < c.end)) return false;
+          return clubOf(x.m.a) === club || clubOf(x.m.b) === club;
+        });
+        if(hit.length > limits[club]){
+          hard.push({level:'error', idx:hit[hit.length-1].idx,
+            title: toHM(st)+'：'+club+' が同時に'+hit.length+'試合',
+            detail:'帯同スタッフは'+limits[club]+'名の申告です。'+
+              hit.map(x => x.m.a.name+' × '+x.m.b.name).join(' / ')+' のどれかを別の時間へ動かしてください。'});
+        }
+      });
+    });
+  }
+
   /* 同時刻の重複と、会場移動が間に合わない配置 */
   teams.forEach(t => {
     const list = mine[t.id].slice().sort((x,y) => x.cell.start - y.cell.start);
@@ -128,7 +157,8 @@ function diagnose(inp){
   });
 
   /* --- ソフト指標 --- */
-  const cap = capacity({teams:teams, cells:cells, avail:avail, allowed:allowed, estimate:inp.estimate, maxSame:cfg.maxSame});
+  const cap = capacity({teams:teams, cells:cells, avail:avail, allowed:allowed, estimate:inp.estimate,
+    maxSame:cfg.maxSame, limits:limits, clubOf:clubOf});
   const metrics = [];
 
   /* 1. 本数充足：どう頑張っても届かない分は減点しない */
@@ -150,9 +180,10 @@ function diagnose(inp){
   /* 2. カテゴリー適合 */
   let catBad = 0, catList = [];
   matches.forEach(({m,idx}) => {
-    if(explicitOk(m.a,m.b) === true) return;
-    const d = catDiff(m.a,m.b);
-    if(d === null || d > cfg.maxCat){
+    const ov = explicitOk(m.a,m.b);
+    if(ov === true || ov === 'want') return;
+    /* 判定は生成器と同じ関数を使う。チーム別の「上の学年OK」もここで効く */
+    if(!catOK(m.a,m.b,cfg.maxCat)){
       catBad++;
       catList.push({idx:idx, s:toHM(m.cell.start)+' '+m.a.name+'('+m.a.catRaw+') × '+m.b.name+'('+m.b.catRaw+')'});
     }
@@ -243,6 +274,19 @@ function diagnose(inp){
   metrics.push({key:'move', label:'会場移動', score:Math.round(move), weight:w.move,
     summary: moveTeams ? moveTeams+'チームが会場をまたぎます（計'+moves+'回）' : '移動なし'});
   if(moveList.length) issues.push({level:'warn', title:'会場をまたぐチーム', detail:moveList.join('、')});
+
+  /* 7. 希望反映率：「必ず当てる」と指定した組が実際に組まれたか */
+  const wantList = wants || [];
+  if(wantList.length){
+    const done = {}, key = (x,y) => x < y ? x+'|'+y : y+'|'+x;
+    matches.forEach(({m}) => done[key(m.a.name, m.b.name)] = 1);
+    const miss = wantList.filter(p => !done[key(p[0],p[1])]);
+    const rate = (wantList.length - miss.length) / wantList.length;
+    metrics.push({key:'want', label:'希望反映率', score:Math.round(clamp(rate*100)), weight:w.want,
+      summary: wantList.length + '件中' + (wantList.length - miss.length) + '件を反映'});
+    if(miss.length) issues.push({level:'warn', title:'組めなかった希望対戦が'+miss.length+'件',
+      detail: miss.map(p => p[0]+' × '+p[1]).join('、')+' — 空き枠から手で入れられます。'});
+  }
 
   /* --- まとめ --- */
   const used = metrics.filter(m => m.weight > 0);

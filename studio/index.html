@@ -140,6 +140,37 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 .ptag.no{background:#F7E3DF;color:#A33520}
 .ptag.lock{background:#EFEFEC;color:#8A9490}
 .ptag.few{background:var(--chalk);color:#3A2E05}
+.ptag.want{background:#E2E9F7;color:#20407E}
+/* 特記（イレギュラー） */
+.chipbtn{font-family:var(--sans);font-size:12px;font-weight:700;padding:8px 10px;border:1px dashed var(--line);
+  background:#fff;color:var(--turf);border-radius:4px;cursor:pointer;width:auto;min-height:40px;text-align:left}
+.chipbtn:hover{background:#EFF6F1;border-style:solid}
+.chiptag{display:inline-block;background:#EFF6F1;border:1px solid #C6DFCF;color:#1D6F4A;border-radius:3px;
+  padding:2px 6px;margin:1px 3px 1px 0;font-size:11px;white-space:nowrap}
+#notePanel{border:1px solid var(--turf);border-radius:5px;padding:13px;margin-top:11px;background:#FAFCFA}
+.noteHead{display:flex;align-items:center;gap:9px;font-size:14px;margin-bottom:10px}
+.noteHead b{font-size:15px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px}
+.chip{font-family:var(--sans);border:1px solid var(--line);background:#fff;border-radius:22px;padding:11px 15px;
+  font-size:13.5px;font-weight:700;cursor:pointer;color:var(--ink);width:auto;min-height:44px}
+.chip:hover{background:#F2F6F1}
+.chip.on{background:var(--turf);border-color:var(--turf);color:#fff}
+.noteRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
+.noteRow label{margin:0;min-width:112px;font-size:12.5px}
+.noteRow .ni{font-size:12.5px;color:var(--dim);display:inline-flex;align-items:center;gap:5px}
+.noteRow input[type=time]{width:118px}
+.noteRow textarea{font-size:14px}
+/* 質問（ウィザード） */
+#wizard{border:1px solid var(--turf);border-radius:5px;padding:15px;margin-top:12px;background:#FAFCFA}
+.wizTop{display:flex;align-items:center;gap:7px;margin-bottom:11px}
+.wizDot{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--dim);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto}
+.wizDot.on{background:var(--turf);border-color:var(--turf);color:#fff}
+.wizDot.done{background:#D8EADF;border-color:#B5D5C3;color:#1D6F4A}
+.wizStep{font-size:11.5px;color:var(--dim);margin-left:auto;font-family:var(--mono)}
+.wizQ{font-size:17px;font-weight:800;margin-bottom:12px}
+.wizNav{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 @media (min-width:760px){.pairGrid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}}
 
 @media print{
@@ -172,6 +203,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 <div class="rail"></div>
 
 <div class="wrap">
+
+<div id="resume" class="noprint"></div>
+
+<section class="noprint">
+  <h2>はじめに<span>聞かれたことに答えるだけで、下の設定が埋まります</span></h2>
+  <div class="row-actions" style="margin:0">
+    <button class="btn" id="wizOpen" onclick="toggleWizard()">質問に答えて設定する</button>
+    <span class="hint" id="saveMark" style="opacity:.45"></span>
+  </div>
+  <div id="wizard" style="display:none">
+    <div id="wizBody"></div>
+  </div>
+</section>
 
 <section class="noprint">
   <h2>開催の形<span>選ぶと初期値が入ります。あとから自由に変えられます</span></h2>
@@ -247,10 +291,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
       <th title="この時刻より前には組みません">初戦KO</th><th title="この時刻より後には組みません">最終KO</th><th>希望本数</th>
       <th title="人数が多く2面同時に出せる">2面</th>
       <th title="連戦してでも早く帰りたいチーム。連戦の減点対象から外します">連戦OK</th>
-      <th title="自クラブとして強調">自</th><th></th>
+      <th title="自クラブとして強調">自</th>
+      <th title="スタッフ1名・上の学年OKなど、そのチームだけの事情">特記</th><th></th>
     </tr></thead>
     <tbody id="teamBody"></tbody>
   </table></div>
+  <div id="notePanel" style="display:none"></div>
   <div class="row-actions">
     <button class="btn mini" onclick="addTeam()">＋ チームを追加</button>
     <button class="btn mini" onclick="autoClub(true)">クラブ / ランクを自動判定</button>
@@ -319,7 +365,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 
 </div>
 
-<script src="score.js?v=20260811g"></script>
-<script src="app.js?v=20260811g"></script>
+<script src="score.js?v=20260812e"></script>
+<script src="app.js?v=20260812e"></script>
+<script src="wizard.js?v=20260812e"></script>
 </body>
 </html>

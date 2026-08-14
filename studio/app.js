@@ -160,11 +160,143 @@ function addTeam(d){
     '<td style="text-align:center"><input class="t-dual" type="checkbox" ' + (d.dual ? 'checked' : '') + ' style="width:auto"></td>' +
     '<td style="text-align:center"><input class="t-burst" type="checkbox" ' + (d.burst ? 'checked' : '') + ' style="width:auto"></td>' +
     '<td style="text-align:center"><input class="t-home" type="checkbox" ' + (d.home ? 'checked' : '') + ' style="width:auto"></td>' +
+    '<td class="t-noteCell"></td>' +
     '<td><button class="btn icon" onclick="this.closest(\'tr\').remove();refreshHint()">削除</button></td>';
   $('teamBody').appendChild(tr);
+  /* 特記（イレギュラー）は行に持たせる。表には要約だけ出す */
+  tr.dataset.catUp = d.catUp || 0;
+  tr.dataset.catDown = d.catDown || 0;
+  tr.dataset.staffLimit = d.staffLimit || 0;   /* 0 = 制限なし */
+  tr.dataset.note = d.note || '';
+  drawNoteCell(tr);
   tr.querySelectorAll('input').forEach(i => i.addEventListener('input', refreshHint));
   refreshHint();
 }
+/* ---------- 特記（イレギュラー）---------- */
+const NOTECHIPS = [
+  {key:'late',  label:'遅れて到着',  ask:'初戦KOは何時からですか？'},
+  {key:'early', label:'早く帰る',    ask:'最終試合のKOは何時までですか？'},
+  {key:'am',    label:'午前のみ'},
+  {key:'staff', label:'スタッフ1名（同時開催不可）'},
+  {key:'up',    label:'上の学年ともOK'},
+  {key:'down',  label:'下の学年ともOK'},
+  {key:'dual',  label:'2面同時に出せる'},
+  {key:'burst', label:'連戦してもよい'},
+  {key:'note',  label:'その他（自由記述）'}
+];
+function trOf(i){return [...$('teamBody').querySelectorAll('tr')][i];}
+/* 行に付いている特記の要約 */
+function noteTags(tr){
+  const t = [];
+  if(+tr.dataset.staffLimit) t.push('スタッフ' + tr.dataset.staffLimit + '名');
+  if(+tr.dataset.catUp) t.push('上' + tr.dataset.catUp + '学年OK');
+  if(+tr.dataset.catDown) t.push('下' + tr.dataset.catDown + '学年OK');
+  if(tr.querySelector('.t-dual') && tr.querySelector('.t-dual').checked) t.push('2面同時');
+  if(tr.querySelector('.t-burst') && tr.querySelector('.t-burst').checked) t.push('連戦OK');
+  if(tr.dataset.note) t.push('メモ');
+  return t;
+}
+function drawNoteCell(tr){
+  const cell = tr.querySelector('.t-noteCell');
+  if(!cell) return;
+  const i = [...$('teamBody').querySelectorAll('tr')].indexOf(tr);
+  const tags = noteTags(tr);
+  cell.innerHTML = '<button class="chipbtn" onclick="openNote(' + i + ')">' +
+    (tags.length ? tags.map(x => '<span class="chiptag">' + esc(x) + '</span>').join('') : '＋ 特記') + '</button>';
+}
+function redrawNotes(){[...$('teamBody').querySelectorAll('tr')].forEach(drawNoteCell);}
+let NOTEROW = null;
+function openNote(i){NOTEROW = (NOTEROW === i) ? null : i; drawNotePanel();}
+function closeNote(){NOTEROW = null; drawNotePanel();}
+function noteSet(key,val){
+  const tr = trOf(NOTEROW); if(!tr) return;
+  const t = readTeams()[NOTEROW];
+  if(key === 'staff'){
+    tr.dataset.staffLimit = val ? 1 : 0;
+    if(val && tr.querySelector('.t-dual').checked) tr.querySelector('.t-dual').checked = false;
+  }
+  if(key === 'up')   tr.dataset.catUp = val ? 1 : 0;
+  if(key === 'down') tr.dataset.catDown = val ? 1 : 0;
+  if(key === 'dual'){
+    tr.querySelector('.t-dual').checked = val;
+    if(val) tr.dataset.staffLimit = 0;
+  }
+  if(key === 'burst') tr.querySelector('.t-burst').checked = val;
+  if(key === 'am' && val){
+    tr.querySelector('.t-from').value = '08:30';
+    tr.querySelector('.t-to').value = '12:00';
+  }
+  drawNotePanel(); refreshHint();
+}
+function noteNum(key,val){
+  const tr = trOf(NOTEROW); if(!tr) return;
+  if(key === 'staff') tr.dataset.staffLimit = Math.max(1, +val || 1);
+  if(key === 'up')    tr.dataset.catUp = Math.max(0, Math.min(3, +val || 0));
+  if(key === 'down')  tr.dataset.catDown = Math.max(0, Math.min(3, +val || 0));
+  drawNotePanel(); refreshHint();
+}
+function noteTime(which,val){
+  const tr = trOf(NOTEROW); if(!tr) return;
+  tr.querySelector(which === 'from' ? '.t-from' : '.t-to').value = val;
+  refreshHint(); drawNotePanel();
+}
+function noteText(val){
+  const tr = trOf(NOTEROW); if(!tr) return;
+  tr.dataset.note = val;
+  redrawNotes();
+}
+function drawNotePanel(){
+  const box = $('notePanel');
+  if(NOTEROW === null || !trOf(NOTEROW)){box.style.display = 'none'; box.innerHTML = ''; redrawNotes(); return;}
+  const tr = trOf(NOTEROW), teams = readTeams(), t = teams[NOTEROW];
+  if(!t){box.style.display = 'none'; return;}
+  const on = k => k === 'staff' ? !!+tr.dataset.staffLimit
+    : k === 'up' ? !!+tr.dataset.catUp
+    : k === 'down' ? !!+tr.dataset.catDown
+    : k === 'dual' ? tr.querySelector('.t-dual').checked
+    : k === 'burst' ? tr.querySelector('.t-burst').checked
+    : k === 'note' ? !!tr.dataset.note : false;
+  let h = '<div class="noteHead"><b>' + esc(t.name || '（チーム名なし）') + '</b> の特記' +
+    '<button class="btn mini" onclick="closeNote()" style="margin-left:auto">閉じる</button></div>';
+  h += '<div class="chips">' + NOTECHIPS.filter(c => c.key !== 'late' && c.key !== 'early' && c.key !== 'am')
+    .map(c => '<button class="chip' + (on(c.key) ? ' on' : '') + '" onclick="' +
+      (c.key === 'note' ? 'noteFocus()' : 'noteSet(\'' + c.key + '\',' + (!on(c.key)) + ')') + '">' +
+      esc(c.label) + '</button>').join('') + '</div>';
+  /* 時間の申告 */
+  h += '<div class="noteRow"><label>出られる時間</label>' +
+    '<span class="ni">初戦KO <input type="time" value="' + toHM2(t.from) + '" onchange="noteTime(\'from\',this.value)"></span>' +
+    '<span class="ni">最終KO <input type="time" value="' + toHM2(t.to) + '" onchange="noteTime(\'to\',this.value)"></span>' +
+    '<button class="chip" onclick="noteSet(\'am\',true)">午前のみにする</button></div>';
+  /* 数値の追加入力 */
+  if(on('staff')) h += '<div class="noteRow"><label>同時に出せる試合数</label>' +
+    '<input type="number" min="1" max="4" value="' + (+tr.dataset.staffLimit || 1) + '" onchange="noteNum(\'staff\',this.value)" style="width:80px">' +
+    '<span class="hint" style="margin:0">帯同スタッフの数。このクラブは同じ時間にこの数までしか試合できません</span></div>';
+  if(on('up')) h += '<div class="noteRow"><label>上へ何学年まで</label>' +
+    '<input type="number" min="1" max="3" value="' + (+tr.dataset.catUp || 1) + '" onchange="noteNum(\'up\',this.value)" style="width:80px"></div>';
+  if(on('down')) h += '<div class="noteRow"><label>下へ何学年まで</label>' +
+    '<input type="number" min="1" max="3" value="' + (+tr.dataset.catDown || 1) + '" onchange="noteNum(\'down\',this.value)" style="width:80px"></div>';
+  /* スタッフ制約はクラブ単位なので、同じクラブの他チームを必ず見せる */
+  if(on('staff')){
+    const mates = teams.filter(o => o.id !== t.id && clubOf(o) === clubOf(t));
+    h += '<div class="' + (mates.length ? 'ok' : 'alert') + '" style="margin:9px 0">' +
+      (mates.length
+        ? '<b>「' + esc(clubOf(t)) + '」として ' + mates.map(o => esc(o.name)).join('、') + ' と同じ扱いになります。</b><br>この中で同時に試合が組まれなくなります。違っていればクラブ欄を直してください。'
+        : '<b>このクラブは ' + esc(t.name) + ' の1チームだけです。</b><br>他にも同じクラブのチームがいる場合は、クラブ欄を同じ名前にそろえてください。そろっていないと同時開催の制限が効きません。');
+    h += '</div>';
+  }
+  if(on('staff') && tr.querySelector('.t-dual').checked)
+    h += '<div class="alert" style="margin:9px 0">「スタッフ1名」と「2面同時」は同時に指定できません。スタッフの指定を優先します。</div>';
+  /* その他は生成に効かないことを常時明示する */
+  h += '<div class="noteRow" style="align-items:flex-start"><label>その他</label>' +
+    '<textarea id="noteText" rows="2" style="flex:1;min-width:200px" placeholder="例）GKが不在です／到着が遅れる可能性あり" ' +
+    'oninput="noteText(this.value)">' + esc(tr.dataset.note || '') + '</textarea></div>' +
+    '<p class="hint" style="color:var(--warn);font-weight:700">この欄の内容は自動では反映されません。印刷の連絡事項に載ります。</p>';
+  box.innerHTML = h;
+  box.style.display = 'block';
+  redrawNotes();
+}
+function noteFocus(){const e = $('noteText'); if(e){e.focus();}}
+
 function autoClub(tell){
   const rows = [...$('teamBody').querySelectorAll('tr')];
   const names = rows.map(tr => tr.querySelector('.t-name').value.trim());
@@ -192,7 +324,9 @@ function readTeams(){
     return {id:i, name:nm, catRaw:raw, cat:m ? +m[0] : null,
       club:g('t-club').value.trim() || sr.club, rank:g('t-rank').value.trim().toUpperCase(),
       players:+g('t-num').value || 0, from:toMin(g('t-from').value), to:toMin(g('t-to').value),
-      target:+g('t-tgt').value || 0, dual:g('t-dual').checked, burst:g('t-burst').checked, home:g('t-home').checked};
+      target:+g('t-tgt').value || 0, dual:g('t-dual').checked, burst:g('t-burst').checked, home:g('t-home').checked,
+      catUp:+tr.dataset.catUp || 0, catDown:+tr.dataset.catDown || 0,
+      staffLimit:+tr.dataset.staffLimit || 0, note:tr.dataset.note || ''};
   }).filter(t => t.name);
 }
 function refreshHint(){
@@ -216,6 +350,42 @@ const sameClubP = (a,b) => !!(a.club && b.club && a.club === b.club);
 function catDiff(a,b){
   if(a.cat == null || b.cat == null) return a.catRaw === b.catRaw ? 0 : null;
   return Math.abs(a.cat - b.cat);
+}
+/* 学年差を許すか。生成器と採点の両方がこの1本を使う。
+   「上の学年ともOK」は年下側の申告、「下の学年ともOK」は年上側の申告で、
+   どちらか片方が許していれば成立させる（両者の同意を求めると入力が倍になる） */
+function catOK(a,b,maxCat){
+  const d = catDiff(a,b);
+  if(d === null) return false;
+  if(d <= maxCat) return true;
+  const younger = (a.cat == null || b.cat == null) ? null : (a.cat < b.cat ? a : b);
+  const older   = (a.cat == null || b.cat == null) ? null : (a.cat < b.cat ? b : a);
+  if(younger && (younger.catUp || 0) >= d) return true;
+  if(older && (older.catDown || 0) >= d) return true;
+  return false;
+}
+/* クラブごとに同時に出せる試合数。同じクラブで値が違えば最小値を採る。0 = 制限なし */
+function staffLimits(teams){
+  const m = {};
+  teams.forEach(t => {
+    const c = clubOf(t), v = t.staffLimit || 0;
+    if(!v) return;
+    m[c] = m[c] === undefined ? v : Math.min(m[c], v);
+  });
+  return m;
+}
+/* そのセルに置いたとき、クラブの同時出場上限を超えないか */
+function staffOK(team,cell,asg,cells,limits,skipIdx){
+  const c = clubOf(team), lim = limits[c];
+  if(!lim) return true;
+  let n = 0;
+  asg.forEach((m,k) => {
+    if(!m || k === skipIdx) return;
+    const cc = cells[k];
+    if(!(cc.start < cell.end && cell.start < cc.end)) return;
+    if(clubOf(m.a) === c || clubOf(m.b) === c) n++;
+  });
+  return n < lim;
 }
 const fitsCourt = (t,c) => !c.catList.length || c.catList.indexOf(t.catRaw) >= 0;
 const inWindow = (t,cell) => t.from <= cell.start && cell.start <= t.to;
@@ -247,24 +417,23 @@ const povGet = (a,b) => PAIROV[povk(a,b)];
 function pairCfg(){return {maxCat:+$('cfgCat').value, club:$('cfgClub').value, rank:$('cfgRank').value};}
 function pairAuto(a,b,cfg){
   if(sameClubP(a,b) && cfg.club === 'no') return false;
-  const cd = catDiff(a,b);
-  if(cd === null || cd > cfg.maxCat) return false;
+  if(!catOK(a,b,cfg.maxCat)) return false;
   if(a.rank && b.rank && a.rank !== b.rank && cfg.rank === 'only') return false;
   return true;
 }
+/* 3状態：false=しない / true=対戦する / 'want'=必ず当てる（希望） */
 function pairState(a,b,cfg){
   const locked = sameClubP(a,b) && cfg.club === 'no';
   const ov = povGet(a,b);
-  return {locked:locked, explicit: !locked && ov !== undefined,
-    allowed: locked ? false : (ov !== undefined ? ov : pairAuto(a,b,cfg))};
+  return {locked:locked, explicit: !locked && ov !== undefined, want: !locked && ov === 'want',
+    allowed: locked ? false : (ov !== undefined ? ov !== false : pairAuto(a,b,cfg))};
 }
 function pairWhy(a,b,cfg){
   const st = pairState(a,b,cfg);
   if(st.allowed) return '';
   if(st.locked) return '同じクラブ';
   if(st.explicit) return '「対戦しない」と指定';
-  const cd = catDiff(a,b);
-  if(cd === null || cd > cfg.maxCat) return 'カテゴリー差が範囲外';
+  if(!catOK(a,b,cfg.maxCat)) return 'カテゴリー差が範囲外';
   if(a.rank && b.rank && a.rank !== b.rank && cfg.rank === 'only') return 'ランク違い';
   return '組めない組み合わせ';
 }
@@ -276,13 +445,19 @@ function togglePairs(){
   if(open) drawPairs();
 }
 function pairPick(i){PAIRSEL = i; drawPairs();}
+/* 押すたび 対戦する → 必ず当てる → しない → （ルールどおり）と巡回する */
 function pairSet(j){
   const teams = readTeams(), cfg = pairCfg(), a = teams[PAIRSEL], b = teams[j];
   if(!a || !b) return;
   const st = pairState(a,b,cfg);
   if(st.locked) return;
-  const next = !st.allowed;
-  if(next === pairAuto(a,b,cfg)) delete PAIROV[povk(a,b)]; else PAIROV[povk(a,b)] = next;
+  const k = povk(a,b), cur = PAIROV[k];
+  let next;
+  if(cur === undefined) next = pairAuto(a,b,cfg) ? 'want' : true;
+  else if(cur === true) next = 'want';
+  else if(cur === 'want') next = false;
+  else next = undefined;
+  if(next === undefined || next === pairAuto(a,b,cfg)) delete PAIROV[k]; else PAIROV[k] = next;
   drawPairs();
 }
 function pairPreset(mode){
@@ -320,14 +495,17 @@ function drawPairs(){
     if(j === PAIRSEL) return '';
     const st = pairState(sel,t,cfg);
     const tag = st.locked ? '<span class="ptag lock">同クラブ</span>' :
+      st.want ? '<span class="ptag want">必ず当てる ●</span>' :
       '<span class="ptag ' + (st.allowed ? 'yes' : 'no') + '">' + (st.allowed ? '対戦する' : 'しない') + (st.explicit ? ' ●' : '') + '</span>';
     return '<button class="pairRow" ' + (st.locked ? 'disabled' : 'onclick="pairSet(' + j + ')"') + '>' +
       '<span class="pnm">' + esc(t.name) + '<span class="pmeta">' + meta(t) + '</span></span>' + tag + '</button>';
   }).join('');
-  let ok = 0, all = 0;
-  teams.forEach((a,i) => teams.forEach((b,j) => {if(j <= i) return; all++; if(pairState(a,b,cfg).allowed) ok++;}));
+  let ok = 0, all = 0, want = 0;
+  teams.forEach((a,i) => teams.forEach((b,j) => {if(j <= i) return; all++;
+    const s = pairState(a,b,cfg); if(s.allowed) ok++; if(s.want) want++;}));
   const few = teams.filter(t => pairCount(t,teams,cfg) <= 1);
-  $('pairSum').innerHTML = '対戦してよいペア ' + ok + ' / ' + all + '　●が付いているのは手で指定したところ。' +
+  $('pairSum').innerHTML = '対戦してよいペア ' + ok + ' / ' + all +
+    (want ? '　うち「必ず当てる」' + want + '組' : '') + '　押すたびに 対戦する→必ず当てる→しない と変わります。' +
     (few.length ? '<br><b style="color:var(--warn)">相手が1チーム以下：' + few.map(t => esc(t.name)).join('、') + '</b>' : '');
   refreshPairHint();
 }
@@ -346,12 +524,28 @@ function makeCells(courts){
 function build(teams,courts,cells,cfg,seed,w){
   const rnd = mulberry32(seed), played = {}, mine = {}, pairs = {}, asg = new Array(cells.length).fill(null);
   const avCnt = {}, orgList = [], org = [], met = [];
+  const limits = staffLimits(teams);
   teams.forEach(t => {const o = clubOf(t); let k = orgList.indexOf(o); if(k < 0){k = orgList.length; orgList.push(o);} org[t.id] = k;});
   teams.forEach(t => {played[t.id] = 0; mine[t.id] = []; met[t.id] = new Int32Array(orgList.length);
     avCnt[t.id] = cells.filter(c => inWindow(t,c) && fitsCourt(t,courts[c.ci])).length;});
+  const limArr = orgList.map(o => limits[o] || 0);
+  const anyLimit = limArr.some(v => v > 0);
   cells.forEach((cell,idx) => {
     const court = courts[cell.ci], rest = court.interval;
     let best = null, bs = -1e9;
+    /* このクラブ（整数）が、この時間にまだ試合を入れられるか */
+    const staffFree = oi => {
+      const lim = limArr[oi];
+      if(!lim) return true;
+      let n = 0;
+      for(let k=0;k<asg.length;k++){
+        const m = asg[k]; if(!m) continue;
+        const cc = cells[k];
+        if(!(cc.start < cell.end && cell.start < cc.end)) continue;
+        if(org[m.a.id] === oi || org[m.b.id] === oi) n++;
+      }
+      return n < lim;
+    };
     for(let i=0;i<teams.length;i++) for(let j=i+1;j<teams.length;j++){
       const a = teams[i], b = teams[j];
       if(!inWindow(a,cell) || !inWindow(b,cell)) continue;
@@ -363,22 +557,30 @@ function build(teams,courts,cells,cfg,seed,w){
       if(!travelOK(mine[a.id],cell,courts) || !travelOK(mine[b.id],cell,courts)) continue;
       const ov = cfg.ov ? cfg.ov[i][j] : undefined;
       if(ov === false) continue;
+      const want = ov === 'want';
       const cd = catDiff(a,b);
-      if(ov !== true && (cd === null || cd > cfg.maxCat)) continue;
+      const cOK = cfg.catM ? cfg.catM[i][j] : catOK(a,b,cfg.maxCat);
+      if(!(ov === true || want) && !cOK) continue;
       if((pairs[pk(a,b)] || 0) >= cfg.maxSame) continue;
+      /* スタッフが1名などで、同じクラブが同時に何試合まで出せるか。
+         申告があるときだけ調べる（無いときにクラブ名を毎回作ると目に見えて遅くなる） */
+      if(anyLimit && (!staffFree(org[a.id]) || !staffFree(org[b.id]))) continue;
       const sameClub = sameClubP(a,b);
       if(sameClub && cfg.club === 'no') continue;
       const cRep = met[a.id][org[b.id]] + met[b.id][org[a.id]];
       const rankBad = !!(a.rank && b.rank && a.rank !== b.rank);
-      if(rankBad && cfg.rank === 'only' && ov !== true) continue;
+      if(rankBad && cfg.rank === 'only' && !ov) continue;
       const ga = minGap(mine[a.id],cell), gb = minGap(mine[b.id],cell);
       /* 連戦OKのチームは連戦の制限をかけない */
       const gaBad = !a.burst && ga < rest, gbBad = !b.burst && gb < rest;
       if(cfg.back === 'hard' && (gaBad || gbBad)) continue;
       const na = a.target - played[a.id], nb = b.target - played[b.id];
-      let sc = (na + nb)*10 - (ov === true ? 0 : (cd || 0))*w.cat - (pairs[pk(a,b)] || 0)*w.rep - cRep*(w.club || 0);
+      let sc = (na + nb)*10 - (ov || (cOK && (cd||0) > cfg.maxCat) ? 0 : (cd || 0))*w.cat
+        - (pairs[pk(a,b)] || 0)*w.rep - cRep*(w.club || 0);
+      /* 「必ず当てる」と指定された組は強く優先する（ハードにはしない） */
+      if(want && !(pairs[pk(a,b)] || 0)) sc += (w.want || 260);
       if(sameClub) sc -= 300;
-      if(rankBad && cfg.rank === 'pref' && ov !== true) sc -= 200;
+      if(rankBad && cfg.rank === 'pref' && !ov) sc -= 200;
       if(cfg.back !== 'free') sc -= ((gaBad ? 1 : 0) + (gbBad ? 1 : 0))*w.back;
       /* 会場が変わること自体を少し嫌う */
       if(w.move){
@@ -428,9 +630,10 @@ function estimateBest(teams,courts,cells,cfg){
     Object.keys(PAIROV).sort()]);
   if(ESTCACHE && ESTCACHE.key === key) return ESTCACHE.val;
   const per = {}, ovm = teams.map(a => teams.map(b => povGet(a,b)));
+  const catM = teams.map(a => teams.map(b => catOK(a,b,cfg.maxCat)));
   teams.forEach(t => per[t.id] = 0);
   let best = 0, minBtb = Infinity;
-  const c2 = Object.assign({}, cfg, {ov:ovm, back:'free'});
+  const c2 = Object.assign({}, cfg, {ov:ovm, catM:catM, back:'free'});
   const ref = Math.min.apply(null, courts.map(c => c.interval));
   /* 本数を最大にする狙いと、連戦を最小にする狙いの2通りで回し、
      それぞれ「実際に到達できた水準」を基準値として持ち帰る */
@@ -461,7 +664,8 @@ function preCheck(){
   if(teams.length < 2){$('preBox').innerHTML = '<div class="alert">チームを2つ以上入れてください。</div>';return null;}
   if(!cells.length){$('preBox').innerHTML = '<div class="alert">使用時間が短すぎて試合枠が作れません。</div>';return null;}
   const cap = MMScore.capacity({teams:teams, cells:cells, avail:availFn(courts), allowed:allowedFn(cfg),
-    estimate:estimateBest(teams,courts,cells,cfg), maxSame:cfg.maxSame});
+    estimate:estimateBest(teams,courts,cells,cfg), maxSame:cfg.maxSame,
+    limits:staffLimits(teams), clubOf:clubOf});
   let h = '';
   h += '<div class="' + (cap.unavoidable > 0 ? 'alert' : 'ok') + '">' +
     '<b>枠は ' + cap.slotCount + '（' + courts.length + '面）／希望本数の合計 ' + cap.wishTotal + '本 → 必要試合数 ' + Math.ceil(cap.wishTotal/2) + '</b><br>' +
@@ -470,9 +674,19 @@ function preCheck(){
       : '枠の数は足りています。') +
     (cap.unavoidable > 0 ? '<br>相手の組み合わせの都合で、<b>どう組んでも' + cap.unavoidable + '本ぶんは希望に届きません</b>。' : '') + '</div>';
   const ng = cap.perTeam.filter(x => x.reason);
-  if(ng.length) h += '<div class="alert"><b>相手が足りないチーム</b><br>' +
-    ng.map(x => esc(x.team.name) + '：希望' + x.team.target + '本 → 最大' + x.feasible + '本（' + x.reason + '）').join('<br>') +
-    '<br>→ <b>同じカードの上限</b>を増やす／カテゴリー差の許容を広げる／「対戦してよい組み合わせ」で相手を足す、のいずれかで増やせます。</div>';
+  if(ng.length){
+    /* 助言は理由に合わせて変える。関係のない対処を並べると迷わせるだけ */
+    const tips = [];
+    const has = s => ng.some(x => x.reason.indexOf(s) >= 0);
+    if(has('同じクラブ')) tips.push('そのクラブの<b>「スタッフ〇名」</b>を増やす、または出られる時間を延ばす');
+    if(has('時間帯が')) tips.push('<b>初戦KO・最終KO</b>を広げる、または面を増やす');
+    if(has('同じカードの上限')) tips.push('<b>同じカードの上限</b>を増やす');
+    if(has('相手が1チームもいません') || has('相手側の本数'))
+      tips.push('<b>カテゴリー差の許容</b>を広げる、特記で<b>「上の学年ともOK」</b>を付ける、または「対戦してよい組み合わせ」で相手を足す');
+    h += '<div class="alert"><b>希望本数に届かないチーム</b><br>' +
+      ng.map(x => esc(x.team.name) + '：希望' + x.team.target + '本 → 最大' + x.feasible + '本（' + x.reason + '）').join('<br>') +
+      (tips.length ? '<br>→ ' + tips.join('／') + '、で増やせます。' : '') + '</div>';
+  }
   if(cap.unavoidable === 0 && cap.wishTotal/2 <= cap.slotCount)
     h += '<div class="ok">このまま組めば全チームの希望を満たせる見込みです。</div>';
   $('preBox').innerHTML = h;
@@ -487,7 +701,9 @@ function run(reseed){
   if(courts.some(c => c.from == null || c.to == null || c.to <= c.from)){alert('面の使用時間を確認してください');return;}
   if(!cells.length){alert('使用時間が短すぎて試合枠が作れません');return;}
   preCheck();
+  /* 対戦可否とカテゴリー判定を一度だけ表にしておく（内側ループを速く保つ） */
   cfg.ov = teams.map(a => teams.map(b => povGet(a,b)));
+  cfg.catM = teams.map(a => teams.map(b => catOK(a,b,cfg.maxCat)));
   if(reseed) SEEDBASE = Math.floor(Math.random()*900000) + 1;
   const plans = [], sigs = new Set();
   PLANS.forEach(p => {
@@ -556,7 +772,9 @@ function diagnoseOf(r,teams,courts,cfg){
       return va && vb ? travelMin(va.venueId, vb.venueId) : 0;
     },
     venueOf:cell => vname[cell.ci],
-    catDiff:catDiff, sameClub:sameClubP, orgOf:clubOf,
+    catDiff:catDiff, catOK:catOK, sameClub:sameClubP, orgOf:clubOf,
+    clubOf:clubOf, staffLimits:staffLimits,
+    wants:Object.keys(PAIROV).filter(k => PAIROV[k] === 'want').map(k => JSON.parse(k)),
     explicitOk:(a,b) => povGet(a,b)
   });
 }
@@ -673,7 +891,11 @@ function render(){
   });
   $('pteams').innerHTML = pt + '</tbody></table></div>';
   const note = $('cfgNote').value.trim();
-  $('pnote').innerHTML = note ? '<div class="ok" style="margin-top:12px">' + esc(note).replace(/／/g,'<br>') + '</div>' : '';
+  /* チームごとの「その他」は生成に効かないので、必ず紙に出す */
+  const tn = teams.filter(t => t.note).map(t => esc(t.name) + '：' + esc(t.note));
+  $('pnote').innerHTML =
+    (note ? '<div class="ok" style="margin-top:12px">' + esc(note).replace(/／/g,'<br>') + '</div>' : '') +
+    (tn.length ? '<div class="ok" style="margin-top:12px"><b>チームからの連絡</b><br>' + tn.join('<br>') + '</div>' : '');
 }
 const stop = 'event.stopPropagation();';
 const swapAttrs = i => ' data-i="' + i + '" draggable="true"' +
@@ -845,10 +1067,13 @@ function loadJSON(el){
       });
       syncVenues();
       $('teamBody').innerHTML = '';
+      /* 新しい項目が無い保存データは既定値で読む（後方互換） */
       (o.teams || []).forEach(t => addTeam({name:t.name, cat:t.catRaw, players:t.players, from:toHM2(t.from), to:toHM2(t.to),
-        target:t.target, dual:t.dual, burst:t.burst, home:t.home, club:t.club, rank:t.rank}));
+        target:t.target, dual:t.dual, burst:t.burst, home:t.home, club:t.club, rank:t.rank,
+        catUp:t.catUp || 0, catDown:t.catDown || 0, staffLimit:t.staffLimit || 0, note:t.note || ''}));
       PAIROV = {};
-      (o.pairs || []).forEach(p => PAIROV[povk(p[0],p[1])] = !!p[2]);
+      /* 対戦可否は3状態。true/false しか無い古いデータもそのまま読める */
+      (o.pairs || []).forEach(p => PAIROV[povk(p[0],p[1])] = (p[2] === 'want' ? 'want' : !!p[2]));
       drawTpl(); refreshHint();
       alert('読み込みました' + (o.studio ? '' : '（1日用の設定を1会場として読み込みました）'));
     }catch(e){alert('読み込めませんでした');}
