@@ -171,6 +171,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 .wizQ{font-size:17px;font-weight:800;margin-bottom:12px}
 .wizNav{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
   margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+/* リーグ戦（公式戦）では要らない列を消す。判定は applyLayout が body に付ける */
+body.lgSimple .colTgt,
+body.lgSimple .colOpt{display:none}
+body.lgTime .colTime{display:none}
+body.lgNoRank .colRank{display:none}
 /* 見出しと「詳しい設定」 */
 .subhead{font-size:13px;font-weight:800;color:var(--ink);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
 .subhead:first-child{margin-top:0;padding-top:0;border-top:none}
@@ -316,10 +321,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
   <table class="tbl">
     <thead><tr>
       <th style="min-width:140px">チーム名</th><th title="同じクラブ同士は対戦しません。空欄ならチーム名から自動判定">クラブ</th>
-      <th title="A / B / C。空欄はどのランクとも対戦できます">ランク</th><th>カテゴリー</th><th>人数</th>
-      <th title="この時刻より前には組みません">初戦KO</th><th title="この時刻より後には組みません">最終KO</th><th>希望本数</th>
-      <th title="人数が多く2面同時に出せる">2面</th>
-      <th title="連戦してでも早く帰りたいチーム。連戦の減点対象から外します">連戦OK</th>
+      <th class="colRank" title="A / B / C。空欄はどのランクとも対戦できます">ランク</th><th>カテゴリー</th><th>人数</th>
+      <th class="colTime" title="この時刻より前には組みません">初戦KO</th>
+      <th class="colTime" title="この時刻より後には組みません">最終KO</th>
+      <th class="colTgt">希望本数</th>
+      <th class="colOpt" title="人数が多く2面同時に出せる">2面</th>
+      <th class="colOpt" title="連戦してでも早く帰りたいチーム。連戦の減点対象から外します">連戦OK</th>
       <th title="自クラブとして強調">自</th>
       <th title="スタッフ1名・上の学年OKなど、そのチームだけの事情">特記</th><th></th>
     </tr></thead>
@@ -454,8 +461,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 
 </div>
 
-<script src="score.js?v=20260813a"></script>
-<script src="app.js?v=20260813a"></script>
-<script src="wizard.js?v=20260813a"></script>
+<script src="score.js?v=20260813b"></script>
+<script src="app.js?v=20260813b"></script>
+<script src="wizard.js?v=20260813b"></script>
 </body>
 </html>

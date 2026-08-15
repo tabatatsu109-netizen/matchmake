@@ -78,6 +78,16 @@ function applyLayout(){
     const td = tr.children[1];
     if(td) td.style.display = many ? '' : 'none';
   });
+  /* リーグ戦（公式戦）で要らない列を消す。
+     ただし実際に使っている列は消さない（時間がバラバラ・ランクで組分け中） */
+  const lg = TPL === 'league';
+  const ts = readTeams();
+  const sameWindow = ts.length < 2 ||
+    ts.every(t => t.from === ts[0].from && t.to === ts[0].to);
+  const usesRank = $('lgBy') && $('lgBy').value === 'rank';
+  document.body.classList.toggle('lgSimple', lg);
+  document.body.classList.toggle('lgTime', lg && sameWindow);
+  document.body.classList.toggle('lgNoRank', lg && !usesRank && ts.every(t => !t.rank));
   /* 対戦の指定があれば「詳しい設定」を開いておく */
   const n = Object.keys(PAIROV).length;
   if($('moreSum')) $('moreSum').textContent = n ? '対戦の指定 ' + n + '組あり' : '';
@@ -213,14 +223,14 @@ function addTeam(d){
   tr.innerHTML =
     '<td><input class="t-name" value="' + esc(d.name) + '" placeholder="チーム名"></td>' +
     '<td><input class="t-club" value="' + esc(d.club !== undefined ? d.club : sr.club) + '" style="width:106px" placeholder="自動"></td>' +
-    '<td><input class="t-rank" value="' + esc(d.rank !== undefined ? d.rank : sr.rank) + '" style="width:44px;text-align:center" placeholder="－"></td>' +
+    '<td class="colRank"><input class="t-rank" value="' + esc(d.rank !== undefined ? d.rank : sr.rank) + '" style="width:44px;text-align:center" placeholder="－"></td>' +
     '<td><input class="t-cat" value="' + esc(d.cat) + '" style="width:62px"></td>' +
     '<td><input class="t-num" type="number" value="' + d.players + '" min="1" style="width:56px"></td>' +
-    '<td><input class="t-from" type="time" step="900" value="' + d.from + '" style="width:104px"></td>' +
-    '<td><input class="t-to" type="time" step="900" value="' + d.to + '" style="width:104px"></td>' +
-    '<td><input class="t-tgt" type="number" value="' + d.target + '" min="0" max="12" style="width:52px"></td>' +
-    '<td style="text-align:center"><input class="t-dual" type="checkbox" ' + (d.dual ? 'checked' : '') + ' style="width:auto"></td>' +
-    '<td style="text-align:center"><input class="t-burst" type="checkbox" ' + (d.burst ? 'checked' : '') + ' style="width:auto"></td>' +
+    '<td class="colTime"><input class="t-from" type="time" step="900" value="' + d.from + '" style="width:104px"></td>' +
+    '<td class="colTime"><input class="t-to" type="time" step="900" value="' + d.to + '" style="width:104px"></td>' +
+    '<td class="colTgt"><input class="t-tgt" type="number" value="' + d.target + '" min="0" max="12" style="width:52px"></td>' +
+    '<td class="colOpt" style="text-align:center"><input class="t-dual" type="checkbox" ' + (d.dual ? 'checked' : '') + ' style="width:auto"></td>' +
+    '<td class="colOpt" style="text-align:center"><input class="t-burst" type="checkbox" ' + (d.burst ? 'checked' : '') + ' style="width:auto"></td>' +
     '<td style="text-align:center"><input class="t-home" type="checkbox" ' + (d.home ? 'checked' : '') + ' style="width:auto"></td>' +
     '<td class="t-noteCell"></td>' +
     '<td><button class="btn icon" onclick="this.closest(\'tr\').remove();refreshHint()">削除</button></td>';
@@ -394,7 +404,15 @@ function readTeams(){
 function refreshHint(){
   const ts = readTeams(), sum = ts.reduce((a,b) => a + b.target, 0);
   const cs = readCourts();
-  $('teamHint').textContent = ts.length + 'チーム／希望本数 合計 ' + sum + '本 → 必要試合数 ' + (sum/2) + (sum%2 ? '（奇数なので1本余ります）' : '');
+  if(TPL === 'league'){
+    /* 公式戦は「希望本数」ではなく総当たりの試合数で見る */
+    const gs = leagueGroups(), rounds = lgRounds();
+    const n = gs.reduce((a,g) => a + leaguePairs(g).length, 0) * rounds;
+    $('teamHint').textContent = ts.length + 'チーム／' + gs.length + 'グループ → 総当たり ' + n + '試合' +
+      (rounds > 1 ? '（' + rounds + '周）' : '');
+  }else{
+    $('teamHint').textContent = ts.length + 'チーム／希望本数 合計 ' + sum + '本 → 必要試合数 ' + (sum/2) + (sum%2 ? '（奇数なので1本余ります）' : '');
+  }
   $('courtHint').textContent = cs.length + '面';
   if($('pairBox').style.display !== 'none') drawPairs(); else refreshPairHint();
   drawTpl(); applyLayout();
