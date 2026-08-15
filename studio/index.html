@@ -171,6 +171,18 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 .wizQ{font-size:17px;font-weight:800;margin-bottom:12px}
 .wizNav{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
   margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+/* 見出しと「詳しい設定」 */
+.subhead{font-size:13px;font-weight:800;color:var(--ink);margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+.subhead:first-child{margin-top:0;padding-top:0;border-top:none}
+#moreBox{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:14px}
+#moreBox>summary{padding:15px 16px;font-size:14px;font-weight:800;letter-spacing:.06em;color:var(--dim);
+  cursor:pointer;list-style:none;min-height:44px;display:flex;align-items:center;gap:8px}
+#moreBox>summary::-webkit-details-marker{display:none}
+#moreBox>summary::before{content:'▸';color:var(--turf);font-size:12px}
+#moreBox[open]>summary::before{content:'▾'}
+#moreBox>summary:hover{color:var(--turf)}
+#moreBox>summary span{font-weight:600;letter-spacing:0;font-size:12px;color:#A9B5AF}
+.moreIn{padding:0 16px 16px}
 /* 審判 */
 /* 審判の行そのものを押せるようにして、小さなボタンを作らない */
 .refline{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin-top:4px;padding:6px 0 2px;
@@ -230,72 +242,53 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 <div id="resume" class="noprint"></div>
 
 <section class="noprint">
-  <h2>はじめに<span>聞かれたことに答えるだけで、下の設定が埋まります</span></h2>
-  <div class="row-actions" style="margin:0">
-    <button class="btn" id="wizOpen" onclick="toggleWizard()">質問に答えて設定する</button>
-    <span class="hint" id="saveMark" style="opacity:.45"></span>
-  </div>
-  <div id="wizard" style="display:none">
-    <div id="wizBody"></div>
-  </div>
-</section>
-
-<section class="noprint">
-  <h2>開催の形<span>選ぶと初期値が入ります。あとから自由に変えられます</span></h2>
+  <h2>① どんな開催ですか？<span>ここを選ぶと、下に出る項目が変わります</span></h2>
   <div class="tpl" id="tplBox"></div>
   <div class="tpldiff" id="tplDiff"></div>
 </section>
 
 <section class="noprint">
-  <h2>開催情報</h2>
+  <h2>② いつ・どこで</h2>
   <div class="grid">
     <div><label>日付</label><input type="date" id="cfgDate"></div>
     <div><label>大会・行事名</label><input id="cfgTitle" value="練習試合"></div>
-    <div><label>形式</label><select id="cfgFormat"><option value="8">8人制</option><option value="11" selected>11人制</option></select></div>
-    <div><label>カテゴリー差の許容</label><select id="cfgCat">
-      <option value="0">同カテゴリーのみ</option><option value="1" selected>±1学年まで</option>
-      <option value="2">±2学年まで</option><option value="9">制限なし</option></select></div>
-    <div><label>連戦（続けて2本）</label><select id="cfgBack">
-      <option value="soft" selected>なるべく避ける</option><option value="hard">禁止（必ず1本空ける）</option>
-      <option value="free">気にしない</option></select></div>
-    <div><label title="3チームだけの練習試合など、同じ相手と何度もやる場合は「制限なし」">同じカードの上限</label><select id="cfgSame">
-      <option value="1">1回まで</option><option value="2" selected>2回まで</option>
-      <option value="3">3回まで</option><option value="4">4回まで</option><option value="5">5回まで</option>
-      <option value="99">制限なし</option></select></div>
-    <div><label>同じクラブ同士の対戦</label><select id="cfgClub">
-      <option value="no" selected>禁止</option><option value="soft">なるべく避ける</option>
-      <option value="ok">許可</option></select></div>
-    <div><label>ランク（A/B/C）</label><select id="cfgRank">
-      <option value="only">同ランクのみ</option><option value="pref" selected>原則 同ランク（足りなければ崩す）</option>
-      <option value="free">自由</option></select></div>
-    <div><label title="A・Bなど複数チームで参加するクラブがいるとき、同じクラブとばかり当たらないようにします">対戦相手のばらけ</label><select id="cfgMix">
-      <option value="1">なるべく色々なクラブと</option>
-      <option value="3" selected>できる限り色々なクラブと</option>
-      <option value="0">気にしない</option></select></div>
-    <div style="grid-column:1/-1"><label>印刷用の連絡事項（任意）</label>
-      <input id="cfgNote" placeholder="例）駐車場は第2グラウンド側／ゴミは各チームでお持ち帰りください"></div>
+    <div><label>開門時間</label><input type="time" step="900" id="cfgOpen" value="08:00"></div>
   </div>
-</section>
 
-<section class="noprint">
-  <h2>会場<span>離れた会場を使うときは、間の移動時間を入れてください</span></h2>
-  <div class="scroll">
-  <table class="tbl">
-    <thead><tr><th style="min-width:170px">会場名</th><th style="min-width:220px">ここへの移動時間（分）</th><th></th></tr></thead>
-    <tbody id="venueBody"></tbody>
-  </table></div>
+  <div class="subhead">会場</div>
+  <div class="noteRow" id="venueOne"><label>会場名</label>
+    <input id="fmVenue" style="max-width:320px" oninput="fmSetVenue(this.value)" placeholder="例）白州総合運動場">
+    <button class="btn mini" onclick="addVenue();applyLayout()">＋ 会場を増やす</button></div>
+  <div id="venueWrap">
+    <div class="scroll">
+    <table class="tbl">
+      <thead><tr><th style="min-width:170px">会場名</th><th style="min-width:220px">ここへの移動時間（分）</th><th></th></tr></thead>
+      <tbody id="venueBody"></tbody>
+    </table></div>
+    <div class="row-actions">
+      <button class="btn mini" onclick="addVenue();applyLayout()">＋ 会場を追加</button>
+      <span class="hint" id="venueHint"></span>
+    </div>
+  </div>
+
+  <div class="subhead">時間割</div>
+  <div class="noteRow"><label>1試合目のKO</label>
+    <input type="time" step="900" id="fmKO" value="09:00" style="width:130px" onchange="drawFormat()"></div>
+  <div class="noteRow"><label>試合時間</label><span id="fmHalf"></span>
+    <span class="ni">ハーフタイム <input type="number" id="fmHT" value="5" min="0" max="20" style="width:70px" onchange="drawFormat()">分</span></div>
+  <div class="noteRow"><label>次の試合まで</label><span id="fmGap"></span></div>
+  <div class="noteRow"><label>審判割</label><span id="fmRef"></span></div>
+  <div id="fmCalc" class="ok" style="margin:10px 0"></div>
   <div class="row-actions">
-    <button class="btn mini" onclick="addVenue()">＋ 会場を追加</button>
-    <span class="hint" id="venueHint"></span>
+    <button class="btn" onclick="applyFormat()">この内容で時間割を作る</button>
+    <span class="hint" id="fmHint" style="margin:0"></span>
   </div>
-</section>
 
-<section class="noprint">
-  <h2>面（コート）<span>面ごとに使用時間・試合時間・対象カテゴリーを変えられます</span></h2>
+  <div class="subhead">面（コート）<span class="hint" style="margin:0 0 0 8px">面ごとに変えたいときだけ直してください</span></div>
   <div class="scroll">
   <table class="tbl">
     <thead><tr>
-      <th style="min-width:130px">面の名前</th><th style="min-width:120px">会場</th>
+      <th style="min-width:130px">面の名前</th><th style="min-width:120px" class="colVenue">会場</th>
       <th>使用開始</th><th>使用終了</th><th title="1本の試合時間">試合</th><th title="次の試合の開始間隔">間隔</th>
       <th style="min-width:110px" title="空欄なら制限なし。例）U15,U14">対象カテゴリー</th><th></th>
     </tr></thead>
@@ -305,10 +298,20 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
     <button class="btn mini" onclick="addCourt()">＋ 面を追加</button>
     <span class="hint" id="courtHint"></span>
   </div>
+
+  <div data-tpl="festival league">
+    <div class="subhead">会場からのお願い<span class="hint" style="margin:0 0 0 8px">進行表の下に印刷されます</span></div>
+    <div class="noteRow" style="align-items:flex-start"><label>開門時間について</label>
+      <textarea id="cfgOpenNote" rows="2" style="flex:1;min-width:220px" placeholder="例）8:00開門です。それより早い到着はご遠慮ください"></textarea></div>
+    <div class="noteRow" style="align-items:flex-start"><label>駐車場について</label>
+      <textarea id="cfgParkNote" rows="2" style="flex:1;min-width:220px" placeholder="例）第2グラウンド側をご利用ください。1チーム3台まで"></textarea></div>
+    <div class="noteRow" style="align-items:flex-start"><label>その他</label>
+      <textarea id="cfgOtherNote" rows="2" style="flex:1;min-width:220px" placeholder="例）ゴミは各チームでお持ち帰りください"></textarea></div>
+  </div>
 </section>
 
 <section class="noprint">
-  <h2>参加チーム<span>希望本数の合計が偶数だとキレイに埋まります</span></h2>
+  <h2>③ 参加チーム<span>事情のあるチームだけ「特記」を押してください</span></h2>
   <div class="scroll">
   <table class="tbl">
     <thead><tr>
@@ -334,30 +337,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
   </div>
 </section>
 
-<section class="noprint">
-  <h2>対戦してよい組み合わせ<span>ふだんは触らなくてOK。「ここは当てたい／やめたい」がある時だけ</span></h2>
-  <div class="row-actions" style="margin:0 0 10px">
-    <button class="btn mini" id="pairToggle" onclick="togglePairs()">組み合わせを指定する</button>
-    <span class="hint" id="pairHint"></span>
-  </div>
-  <div id="pairBox" style="display:none">
-    <div class="row-actions" style="margin:0 0 10px">
-      <button class="btn mini" onclick="pairPreset('reset')">ルールどおりに戻す</button>
-      <button class="btn mini" onclick="pairPreset('all')">全部 対戦する</button>
-    </div>
-    <div class="pairGrid">
-      <div class="pairCol" id="pairLeft"></div>
-      <div class="pairCol">
-        <div class="pairHead" id="pairRightHead"></div>
-        <div id="pairRight"></div>
-      </div>
-    </div>
-    <p class="hint" id="pairSum"></p>
-  </div>
-</section>
-
-<section class="noprint">
-  <h2>リーグ戦（総当たり）<span>使うときだけ。カードを先に決めてから時間割に置きます</span></h2>
+<section class="noprint" data-tpl="league">
+  <h2>④ リーグ設定<span>総当たりのカードを作ってから時間割に置きます</span></h2>
   <div class="row-actions" style="margin:0 0 10px">
     <label style="margin:0">グループ分け</label>
     <select id="lgBy" onchange="drawLeague()" style="width:auto;min-width:150px">
@@ -370,43 +351,71 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
       <option value="1">1周（総当たり1回）</option>
       <option value="2">2周（ホーム＆アウェー）</option>
     </select>
-    <button class="btn mini" onclick="drawLeague()">組み合わせを見る</button>
   </div>
   <div id="leagueBox"></div>
+  <p class="hint" id="lgAuto"></p>
 </section>
 
-<section class="noprint">
-  <h2>大会要項をつくる<span>答えると時間割と審判割まで作ります。あとから直せます</span></h2>
-  <div class="noteRow"><label>大会名</label>
-    <input id="fmTitle" style="max-width:300px" oninput="$('cfgTitle').value=this.value;autoSave()"></div>
-  <div class="noteRow"><label>会場</label>
-    <input id="fmVenue" style="max-width:300px" oninput="fmSetVenue(this.value)"></div>
-  <div class="noteRow"><label>開門時間</label>
-    <input type="time" step="900" id="cfgOpen" value="08:00" style="width:130px">
-    <label style="min-width:110px;margin-left:10px">1試合目のKO</label>
-    <input type="time" step="900" id="fmKO" value="09:00" style="width:130px" onchange="drawFormat()"></div>
-  <div class="noteRow"><label>試合時間</label><span id="fmHalf"></span>
-    <span class="ni">ハーフタイム <input type="number" id="fmHT" value="5" min="0" max="20" style="width:70px" onchange="drawFormat()">分</span></div>
-  <div class="noteRow"><label>次の試合まで</label><span id="fmGap"></span></div>
-  <div class="noteRow"><label>審判割</label><span id="fmRef"></span></div>
-  <div id="fmCalc" class="ok" style="margin:10px 0"></div>
-  <div class="noteRow" style="align-items:flex-start"><label>開門時間について</label>
-    <textarea id="cfgOpenNote" rows="2" style="flex:1;min-width:220px" placeholder="例）8:00開門です。それより早い到着はご遠慮ください"></textarea></div>
-  <div class="noteRow" style="align-items:flex-start"><label>駐車場について</label>
-    <textarea id="cfgParkNote" rows="2" style="flex:1;min-width:220px" placeholder="例）第2グラウンド側の駐車場をご利用ください。1チーム3台まで"></textarea></div>
-  <div class="noteRow" style="align-items:flex-start"><label>その他</label>
-    <textarea id="cfgOtherNote" rows="2" style="flex:1;min-width:220px" placeholder="例）ゴミは各チームでお持ち帰りください／更衣室はありません"></textarea></div>
-  <div class="row-actions">
-    <button class="btn" onclick="applyFormat()">この内容で時間割を作る</button>
-    <span class="hint" id="fmHint" style="margin:0"></span>
+<details class="noprint" id="moreBox">
+  <summary>詳しい設定<span id="moreSum"></span></summary>
+  <div class="moreIn">
+    <div class="subhead">対戦の決まりごと</div>
+    <div class="grid">
+      <div><label>形式</label><select id="cfgFormat"><option value="8">8人制</option><option value="11" selected>11人制</option></select></div>
+      <div data-tpl="!league"><label>カテゴリー差の許容</label><select id="cfgCat">
+        <option value="0">同カテゴリーのみ</option><option value="1" selected>±1学年まで</option>
+        <option value="2">±2学年まで</option><option value="9">制限なし</option></select></div>
+      <div data-tpl="!league"><label>連戦（続けて2本）</label><select id="cfgBack">
+        <option value="soft" selected>なるべく避ける</option><option value="hard">禁止（必ず1本空ける）</option>
+        <option value="free">気にしない</option></select></div>
+      <div data-tpl="!league"><label title="3チームだけの練習試合など、同じ相手と何度もやる場合は「制限なし」">同じカードの上限</label><select id="cfgSame">
+        <option value="1">1回まで</option><option value="2" selected>2回まで</option>
+        <option value="3">3回まで</option><option value="4">4回まで</option><option value="5">5回まで</option>
+        <option value="99">制限なし</option></select></div>
+      <div><label>同じクラブ同士の対戦</label><select id="cfgClub">
+        <option value="no" selected>禁止</option><option value="soft">なるべく避ける</option>
+        <option value="ok">許可</option></select></div>
+      <div><label>ランク（A/B/C）</label><select id="cfgRank">
+        <option value="only">同ランクのみ</option><option value="pref" selected>原則 同ランク（足りなければ崩す）</option>
+        <option value="free">自由</option></select></div>
+      <div data-tpl="!league"><label title="A・Bなど複数チームで参加するクラブがいるとき、同じクラブとばかり当たらないようにします">対戦相手のばらけ</label><select id="cfgMix">
+        <option value="1">なるべく色々なクラブと</option>
+        <option value="3" selected>できる限り色々なクラブと</option>
+        <option value="0">気にしない</option></select></div>
+    </div>
+
+    <div class="subhead">対戦してよい組み合わせ<span class="hint" style="margin:0 0 0 8px">「ここは当てたい／やめたい」がある時だけ</span></div>
+    <div class="row-actions" style="margin:0 0 10px">
+      <button class="btn mini" id="pairToggle" onclick="togglePairs()">組み合わせを指定する</button>
+      <span class="hint" id="pairHint"></span>
+    </div>
+    <div id="pairBox" style="display:none">
+      <div class="row-actions" style="margin:0 0 10px">
+        <button class="btn mini" onclick="pairPreset('reset')">ルールどおりに戻す</button>
+        <button class="btn mini" onclick="pairPreset('all')">全部 対戦する</button>
+      </div>
+      <div class="pairGrid">
+        <div class="pairCol" id="pairLeft"></div>
+        <div class="pairCol">
+          <div class="pairHead" id="pairRightHead"></div>
+          <div id="pairRight"></div>
+        </div>
+      </div>
+      <p class="hint" id="pairSum"></p>
+    </div>
+
+    <div class="subhead">印刷用の連絡事項</div>
+    <div class="noteRow"><label>ひとこと</label>
+      <input id="cfgNote" style="flex:1;min-width:220px" placeholder="例）駐車場は第2グラウンド側／ゴミは各チームでお持ち帰りください"></div>
   </div>
-</section>
+</details>
 
 <section class="noprint" id="preSec">
-  <h2>組む前のチェック<span>物理的に組めるかどうかを先に確かめます</span></h2>
+  <h2>⑤ 組む前のチェック<span>物理的に組めるかどうかを先に確かめます</span></h2>
   <div id="preBox"></div>
   <div class="row-actions">
     <button class="btn mini" onclick="preCheck()">チェックする</button>
+    <span class="hint" id="saveMark" style="opacity:.45"></span>
   </div>
 </section>
 
@@ -445,8 +454,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 
 </div>
 
-<script src="score.js?v=20260812k"></script>
-<script src="app.js?v=20260812k"></script>
-<script src="wizard.js?v=20260812k"></script>
+<script src="score.js?v=20260813a"></script>
+<script src="app.js?v=20260813a"></script>
+<script src="wizard.js?v=20260813a"></script>
 </body>
 </html>

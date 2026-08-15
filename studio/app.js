@@ -48,7 +48,48 @@ function pickTpl(key){
   if(t.soon && !confirm(t.name + ' はまだ対応していません（設計のみ）。初期値だけ入れますか？')) return;
   TPL = key; TPLBASE = t.cfg;
   Object.keys(t.cfg).forEach(k => {if($(k)) $(k).value = t.cfg[k];});
-  drawTpl(); refreshHint();
+  drawTpl(); refreshHint(); applyLayout();
+  if(key === 'league') drawLeague();
+}
+/* ---------- 画面の出し分け ----------
+   開催の形1つで決まる。判断はここだけに置く。
+   data-tpl="festival league" = その形のときだけ出す
+   data-tpl="!league"         = その形のときは隠す
+   ただし「使っているもの」は隠さない。隠したせいで結果の理由が
+   分からなくなるほうが害が大きいため */
+function applyLayout(){
+  document.querySelectorAll('[data-tpl]').forEach(el => {
+    const spec = el.dataset.tpl.trim();
+    const show = spec.charAt(0) === '!'
+      ? spec.slice(1).split(/\s+/).indexOf(TPL) < 0
+      : spec.split(/\s+/).indexOf(TPL) >= 0;
+    el.style.display = show ? '' : 'none';
+  });
+  /* 会場：1つなら名前だけ、2つ以上か複数会場を使う形なら表を出す */
+  const many = venueRows().length > 1 || TPL === 'festival' || TPL === 'camp';
+  if($('venueWrap')) $('venueWrap').style.display = many ? '' : 'none';
+  if($('venueOne')) $('venueOne').style.display = many ? 'none' : '';
+  if(!many){
+    const v = readVenues()[0];
+    if(v && $('fmVenue') && $('fmVenue').value !== v.name) $('fmVenue').value = v.name;
+  }
+  document.querySelectorAll('.colVenue').forEach(el => {el.style.display = many ? '' : 'none';});
+  [...$('courtBody').querySelectorAll('tr')].forEach(tr => {
+    const td = tr.children[1];
+    if(td) td.style.display = many ? '' : 'none';
+  });
+  /* 対戦の指定があれば「詳しい設定」を開いておく */
+  const n = Object.keys(PAIROV).length;
+  if($('moreSum')) $('moreSum').textContent = n ? '対戦の指定 ' + n + '組あり' : '';
+  if(n && $('moreBox') && !$('moreBox').open) $('moreBox').open = true;
+  /* リーグ戦で自動設定した内容を見せる（隠したまま黙って効かせない） */
+  if($('lgAuto')){
+    const same = $('cfgSame').value, cat = $('cfgCat').options[$('cfgCat').selectedIndex].textContent;
+    $('lgAuto').textContent = TPL === 'league'
+      ? '※ このリーグ戦では 同じカードの上限＝' + (same === '99' ? '制限なし' : same + '回') +
+        '、カテゴリー差＝' + cat + ' にしています（詳しい設定で変えられます）'
+      : '';
+  }
 }
 
 /* ---------- 会場 ---------- */
@@ -356,7 +397,7 @@ function refreshHint(){
   $('teamHint').textContent = ts.length + 'チーム／希望本数 合計 ' + sum + '本 → 必要試合数 ' + (sum/2) + (sum%2 ? '（奇数なので1本余ります）' : '');
   $('courtHint').textContent = cs.length + '面';
   if($('pairBox').style.display !== 'none') drawPairs(); else refreshPairHint();
-  drawTpl();
+  drawTpl(); applyLayout();
 }
 
 /* ---------- 判定の共通部品 ---------- */
@@ -768,7 +809,6 @@ function drawFormat(){
   $('fmCalc').innerHTML = '<b>1試合 ' + mm + '分</b>（' + FMHALF + '分ハーフ＋ハーフタイム' + (+$('fmHT').value||0) + '分）／' +
     '<b>' + iv + '分まわし</b>（次の試合まで' + FMGAP + '分）<br>' +
     '<span style="font-family:var(--mono);font-size:12px">KO ' + list.join('　') + ' …</span>';
-  if($('fmTitle') && !$('fmTitle').value) $('fmTitle').value = $('cfgTitle').value;
   if($('fmVenue') && !$('fmVenue').value){const v = readVenues()[0]; if(v) $('fmVenue').value = v.name;}
 }
 function applyFormat(){
@@ -780,8 +820,7 @@ function applyFormat(){
     tr.querySelector('.c-match').value = mm;
     tr.querySelector('.c-int').value = iv;
   });
-  if($('fmTitle').value) $('cfgTitle').value = $('fmTitle').value;
-  if($('fmVenue').value) fmSetVenue($('fmVenue').value);
+  if($('fmVenue') && $('fmVenue').value && venueRows().length <= 1) fmSetVenue($('fmVenue').value);
   refreshHint();
   const w = defaultWindow();
   $('fmHint').textContent = '面を ' + ko + '〜 / 1試合' + mm + '分 / ' + iv + '分まわし にしました（チームの時間は ' + w.from + '〜' + w.to + '）';
@@ -1447,3 +1486,4 @@ addCourt({name:'Bコート', venue:1, from:'09:00', to:'16:30', match:50, interv
 pickTpl('festival');
 drawTpl();
 drawFormat();
+applyLayout();
