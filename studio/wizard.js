@@ -57,7 +57,7 @@ function applyDraft(o){
     target:t.target, dual:t.dual, burst:t.burst, home:t.home, club:t.club, rank:t.rank,
     catUp:t.catUp || 0, catDown:t.catDown || 0, staffLimit:t.staffLimit || 0, note:t.note || ''}));
   PAIROV = {};
-  (o.pairs || []).forEach(p => PAIROV[povk(p[0],p[1])] = (p[2] === 'want' ? 'want' : !!p[2]));
+  (o.pairs || []).forEach(p => PAIROV[povk(p[0],p[1])] = normWant(p[2]));
   drawTpl(); refreshHint();
 }
 function restoreDraft(){

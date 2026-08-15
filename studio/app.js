@@ -442,11 +442,14 @@ function pairAuto(a,b,cfg){
   if(a.rank && b.rank && a.rank !== b.rank && cfg.rank === 'only') return false;
   return true;
 }
-/* 3状態：false=しない / true=対戦する / 'want'=必ず当てる（希望） */
+/* false=しない / true=対戦する / 'want'=必ず1本 / 'want2'=必ず2本（リーグ戦の2周） */
+const isWant = v => v === 'want' || v === 'want2';
+const wantN = v => v === 'want2' ? 2 : v === 'want' ? 1 : 0;
+const normWant = v => v === 'want2' ? 'want2' : v === 'want' ? 'want' : !!v;
 function pairState(a,b,cfg){
   const locked = sameClubP(a,b) && cfg.club === 'no';
   const ov = povGet(a,b);
-  return {locked:locked, explicit: !locked && ov !== undefined, want: !locked && ov === 'want',
+  return {locked:locked, explicit: !locked && ov !== undefined, want: !locked && isWant(ov), wantN: wantN(ov),
     allowed: locked ? false : (ov !== undefined ? ov !== false : pairAuto(a,b,cfg))};
 }
 function pairWhy(a,b,cfg){
@@ -476,7 +479,7 @@ function pairSet(j){
   let next;
   if(cur === undefined) next = pairAuto(a,b,cfg) ? 'want' : true;
   else if(cur === true) next = 'want';
-  else if(cur === 'want') next = false;
+  else if(isWant(cur)) next = false;
   else next = undefined;
   if(next === undefined || next === pairAuto(a,b,cfg)) delete PAIROV[k]; else PAIROV[k] = next;
   drawPairs();
@@ -516,7 +519,7 @@ function drawPairs(){
     if(j === PAIRSEL) return '';
     const st = pairState(sel,t,cfg);
     const tag = st.locked ? '<span class="ptag lock">同クラブ</span>' :
-      st.want ? '<span class="ptag want">必ず当てる ●</span>' :
+      st.want ? '<span class="ptag want">必ず' + (st.wantN > 1 ? st.wantN + '本' : '当てる') + ' ●</span>' :
       '<span class="ptag ' + (st.allowed ? 'yes' : 'no') + '">' + (st.allowed ? '対戦する' : 'しない') + (st.explicit ? ' ●' : '') + '</span>';
     return '<button class="pairRow" ' + (st.locked ? 'disabled' : 'onclick="pairSet(' + j + ')"') + '>' +
       '<span class="pnm">' + esc(t.name) + '<span class="pmeta">' + meta(t) + '</span></span>' + tag + '</button>';
@@ -578,7 +581,7 @@ function build(teams,courts,cells,cfg,seed,w){
       if(!travelOK(mine[a.id],cell,courts) || !travelOK(mine[b.id],cell,courts)) continue;
       const ov = cfg.ov ? cfg.ov[i][j] : undefined;
       if(ov === false) continue;
-      const want = ov === 'want';
+      const want = isWant(ov), needN = wantN(ov);
       const cd = catDiff(a,b);
       const cOK = cfg.catM ? cfg.catM[i][j] : catOK(a,b,cfg.maxCat);
       if(!(ov === true || want) && !cOK) continue;
@@ -598,8 +601,9 @@ function build(teams,courts,cells,cfg,seed,w){
       const na = a.target - played[a.id], nb = b.target - played[b.id];
       let sc = (na + nb)*10 - (ov || (cOK && (cd||0) > cfg.maxCat) ? 0 : (cd || 0))*w.cat
         - (pairs[pk(a,b)] || 0)*w.rep - cRep*(w.club || 0);
-      /* 「必ず当てる」と指定された組は強く優先する（ハードにはしない） */
-      if(want && !(pairs[pk(a,b)] || 0)) sc += (w.want || 260);
+      /* 「必ず当てる」と指定された組は強く優先する（ハードにはしない）。
+         2周のリーグ戦なら2本目まで優先する */
+      if(want && (pairs[pk(a,b)] || 0) < needN) sc += (w.want || 260);
       if(sameClub) sc -= 300;
       if(rankBad && cfg.rank === 'pref' && !ov) sc -= 200;
       if(cfg.back !== 'free') sc -= ((gaBad ? 1 : 0) + (gbBad ? 1 : 0))*w.back;
@@ -654,18 +658,20 @@ function leaguePairs(g){
   }
   return out;
 }
+function lgRounds(){return $('lgRounds') ? +$('lgRounds').value : 1;}
 function drawLeague(){
-  const gs = leagueGroups();
+  const gs = leagueGroups(), rounds = lgRounds();
   if(!gs.length){$('leagueBox').innerHTML = '<div class="alert">2チーム以上のグループがありません。参加チームを入れてください。</div>';return;}
   const cells = makeCells(readCourts());
   let total = 0, h = '<div class="scroll"><table class="tbl"><thead><tr>' +
     '<th>グループ</th><th>チーム</th><th>試合数</th><th>1チームあたり</th></tr></thead><tbody>';
   gs.forEach(g => {
-    const ps = leaguePairs(g); total += ps.length;
+    const ps = leaguePairs(g); total += ps.length * rounds;
     h += '<tr><td style="font-weight:700;white-space:nowrap">' + esc(g.name) + '</td>' +
       '<td style="font-size:12.5px">' + g.teams.map(t => esc(t.name)).join('、') + '</td>' +
-      '<td style="white-space:nowrap">' + ps.length + '試合</td>' +
-      '<td style="white-space:nowrap">' + (g.teams.length - 1) + '本</td></tr>';
+      '<td style="white-space:nowrap">' + (ps.length * rounds) + '試合' +
+      (rounds > 1 ? '<span style="color:var(--dim);font-size:11px">（' + ps.length + '×' + rounds + '周）</span>' : '') + '</td>' +
+      '<td style="white-space:nowrap">' + ((g.teams.length - 1) * rounds) + '本</td></tr>';
   });
   h += '</tbody></table></div>';
   h += '<div class="' + (total > cells.length ? 'alert' : 'ok') + '" style="margin-top:11px">' +
@@ -678,35 +684,42 @@ function drawLeague(){
   $('leagueBox').innerHTML = h;
 }
 function applyLeague(){
-  const gs = leagueGroups();
+  const gs = leagueGroups(), rounds = lgRounds();
   if(!gs.length) return;
-  if(!confirm('総当たりのカードを設定します。\n・各チームの希望本数を「グループの人数−1」にそろえます\n・全カードを「必ず当てる」にします\n・同じカードの上限を1回にします\nよろしいですか？')) return;
+  if(!confirm(rounds + '周の総当たりを設定します。\n・各チームの希望本数を「（人数−1）×' + rounds + '」にそろえます\n' +
+    '・全カードを「必ず当てる」にします\n・同じカードの上限を' + rounds + '回にします\nよろしいですか？')) return;
   PAIROV = {};
   const rows = [...$('teamBody').querySelectorAll('tr')];
   gs.forEach(g => {
-    leaguePairs(g).forEach(p => PAIROV[povk(p[0],p[1])] = 'want');
+    const ps = leaguePairs(g);
+    ps.forEach(p => PAIROV[povk(p[0],p[1])] = (rounds > 1 ? 'want2' : 'want'));
     g.teams.forEach(t => {
-      const n = leaguePairs(g).filter(p => p[0].id === t.id || p[1].id === t.id).length;
+      const n = ps.filter(p => p[0].id === t.id || p[1].id === t.id).length * rounds;
       if(rows[t.id]) rows[t.id].querySelector('.t-tgt').value = n;
     });
   });
-  $('cfgSame').value = '1';
+  $('cfgSame').value = String(rounds);
   refreshHint(); drawLeague();
   alert('設定しました。「スケジュールを作る」を押してください。');
 }
 /* 星取表：どのカードが組めて、どれが残っているか */
 function leagueTable(r){
   const gs = leagueGroups();
-  const wants = Object.keys(PAIROV).filter(k => PAIROV[k] === 'want');
+  const wants = Object.keys(PAIROV).filter(k => isWant(PAIROV[k]));
   if(!wants.length || !gs.length) return '';
+  /* 1組に複数の試合が入ることがある（2周）ので、時刻を配列で持つ */
   const done = {};
-  r.asg.forEach((m,i) => {if(m) done[povk(m.a,m.b)] = toHM(r.cells[i].start);});
+  r.asg.forEach((m,i) => {if(m){const k = povk(m.a,m.b); (done[k] = done[k] || []).push(toHM(r.cells[i].start));}});
   let h = '';
   gs.forEach(g => {
-    const ps = leaguePairs(g).filter(p => PAIROV[povk(p[0],p[1])] === 'want');
+    const ps = leaguePairs(g).filter(p => isWant(PAIROV[povk(p[0],p[1])]));
     if(!ps.length) return;
+    const need = p => wantN(PAIROV[povk(p[0],p[1])]);
+    const got = p => (done[povk(p[0],p[1])] || []).length;
+    const needTotal = ps.reduce((a,p) => a + need(p), 0);
+    const gotTotal = ps.reduce((a,p) => a + Math.min(got(p), need(p)), 0);
     h += '<div class="vname">' + esc(g.name) + ' の対戦表<span>' +
-      ps.filter(p => done[povk(p[0],p[1])]).length + ' / ' + ps.length + '試合が入りました</span></div>';
+      gotTotal + ' / ' + needTotal + '試合が入りました</span></div>';
     h += '<div class="scroll"><table class="tbl"><thead><tr><th></th>' +
       g.teams.map(t => '<th style="font-size:11px">' + esc(t.name) + '</th>').join('') + '</tr></thead><tbody>';
     g.teams.forEach(a => {
@@ -714,10 +727,12 @@ function leagueTable(r){
       g.teams.forEach(b => {
         if(a.id === b.id){h += '<td style="background:#EFEFEC"></td>';return;}
         const k = povk(a,b);
-        if(PAIROV[k] !== 'want'){h += '<td style="color:#B6BEB8;text-align:center">—</td>';return;}
-        h += done[k]
-          ? '<td style="text-align:center;font-family:var(--mono);font-size:12px;background:#EFF6F1;color:#1D6F4A">' + done[k] + '</td>'
-          : '<td style="text-align:center;background:#FBEDE9;color:#A33520;font-size:11px">未</td>';
+        if(!isWant(PAIROV[k])){h += '<td style="color:#B6BEB8;text-align:center">—</td>';return;}
+        const n = wantN(PAIROV[k]), ts = (done[k] || []).sort();
+        h += ts.length >= n
+          ? '<td style="text-align:center;font-family:var(--mono);font-size:12px;background:#EFF6F1;color:#1D6F4A">' + ts.join('<br>') + '</td>'
+          : '<td style="text-align:center;background:#FBEDE9;color:#A33520;font-size:11px">' +
+            (ts.length ? '<span style="font-family:var(--mono)">' + ts.join('<br>') + '</span><br>あと' + (n - ts.length) + '本' : '未') + '</td>';
       });
       h += '</tr>';
     });
@@ -889,7 +904,8 @@ function diagnoseOf(r,teams,courts,cfg){
     venueOf:cell => vname[cell.ci],
     catDiff:catDiff, catOK:catOK, sameClub:sameClubP, orgOf:clubOf,
     clubOf:clubOf, staffLimits:staffLimits,
-    wants:Object.keys(PAIROV).filter(k => PAIROV[k] === 'want').map(k => JSON.parse(k)),
+    wants:Object.keys(PAIROV).filter(k => isWant(PAIROV[k])).map(k => {
+      const p = JSON.parse(k); return [p[0], p[1], wantN(PAIROV[k])];}),
     explicitOk:(a,b) => povGet(a,b)
   });
 }
@@ -1239,7 +1255,7 @@ function loadJSON(el){
         catUp:t.catUp || 0, catDown:t.catDown || 0, staffLimit:t.staffLimit || 0, note:t.note || ''}));
       PAIROV = {};
       /* 対戦可否は3状態。true/false しか無い古いデータもそのまま読める */
-      (o.pairs || []).forEach(p => PAIROV[povk(p[0],p[1])] = (p[2] === 'want' ? 'want' : !!p[2]));
+      (o.pairs || []).forEach(p => PAIROV[povk(p[0],p[1])] = normWant(p[2]));
       drawTpl(); refreshHint();
       alert('読み込みました' + (o.studio ? '' : '（1日用の設定を1会場として読み込みました）'));
     }catch(e){alert('読み込めませんでした');}

@@ -181,7 +181,7 @@ function diagnose(inp){
   let catBad = 0, catList = [];
   matches.forEach(({m,idx}) => {
     const ov = explicitOk(m.a,m.b);
-    if(ov === true || ov === 'want') return;
+    if(ov === true || ov === 'want' || ov === 'want2') return;
     /* 判定は生成器と同じ関数を使う。チーム別の「上の学年OK」もここで効く */
     if(!catOK(m.a,m.b,cfg.maxCat)){
       catBad++;
@@ -278,14 +278,21 @@ function diagnose(inp){
   /* 7. 希望反映率：「必ず当てる」と指定した組が実際に組まれたか */
   const wantList = wants || [];
   if(wantList.length){
+    /* 2周のリーグ戦では1組に2本必要なので、件数ではなく本数で数える */
     const done = {}, key = (x,y) => x < y ? x+'|'+y : y+'|'+x;
-    matches.forEach(({m}) => done[key(m.a.name, m.b.name)] = 1);
-    const miss = wantList.filter(p => !done[key(p[0],p[1])]);
-    const rate = (wantList.length - miss.length) / wantList.length;
+    matches.forEach(({m}) => {const k = key(m.a.name, m.b.name); done[k] = (done[k]||0) + 1;});
+    let need = 0, got = 0;
+    const miss = [];
+    wantList.forEach(p => {
+      const n = p[2] || 1, have = Math.min(done[key(p[0],p[1])] || 0, n);
+      need += n; got += have;
+      if(have < n) miss.push(p[0]+' × '+p[1] + (n > 1 ? '（あと'+(n-have)+'本）' : ''));
+    });
+    const rate = need ? got / need : 1;
     metrics.push({key:'want', label:'希望反映率', score:Math.round(clamp(rate*100)), weight:w.want,
-      summary: wantList.length + '件中' + (wantList.length - miss.length) + '件を反映'});
-    if(miss.length) issues.push({level:'warn', title:'組めなかった希望対戦が'+miss.length+'件',
-      detail: miss.map(p => p[0]+' × '+p[1]).join('、')+' — 空き枠から手で入れられます。'});
+      summary: need + '本中' + got + '本を反映'});
+    if(miss.length) issues.push({level:'warn', title:'組めなかった希望対戦が'+miss.length+'組',
+      detail: miss.join('、')+' — 空き枠から手で入れられます。'});
   }
 
   /* --- まとめ --- */

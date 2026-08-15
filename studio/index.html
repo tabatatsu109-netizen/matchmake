@@ -355,6 +355,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
       <option value="rank">カテゴリー＋ランクごと</option>
       <option value="all">全チームで1つ</option>
     </select>
+    <label style="margin:0">周回数</label>
+    <select id="lgRounds" onchange="drawLeague()" style="width:auto;min-width:180px">
+      <option value="1">1周（総当たり1回）</option>
+      <option value="2">2周（ホーム＆アウェー）</option>
+    </select>
     <button class="btn mini" onclick="drawLeague()">組み合わせを見る</button>
   </div>
   <div id="leagueBox"></div>
@@ -403,8 +408,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 
 </div>
 
-<script src="score.js?v=20260812g"></script>
-<script src="app.js?v=20260812g"></script>
-<script src="wizard.js?v=20260812g"></script>
+<script src="score.js?v=20260812h"></script>
+<script src="app.js?v=20260812h"></script>
+<script src="wizard.js?v=20260812h"></script>
 </body>
 </html>
