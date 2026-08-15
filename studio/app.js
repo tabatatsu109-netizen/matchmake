@@ -741,6 +741,150 @@ function leagueTable(r){
   return h;
 }
 
+/* ---------- 大会要項 ----------
+   「25分ハーフ」「次の試合まで15分」のような現場の言い方から、
+   面の設定（試合時間・開始間隔）を計算して入れる */
+const HALVES = [15,20,25,30,35,40];
+const GAPS = [10,15,20,25,30,45,60];
+const REFMODES = [{v:0,label:'なし'},{v:1,label:'主審のみ'},{v:3,label:'主審＋副審2'},{v:4,label:'4人制'}];
+let FMHALF = 25, FMGAP = 15, REFMODE = 3;
+function fmMatchMin(){return FMHALF*2 + (+$('fmHT').value || 0);}
+function fmSetVenue(v){
+  const r = venueRows()[0];
+  if(r){r.querySelector('.v-name').value = v; syncVenues();}
+  autoSave();
+}
+function drawFormat(){
+  $('fmHalf').innerHTML = HALVES.map(h => '<button class="chip' + (FMHALF === h ? ' on' : '') +
+    '" onclick="FMHALF=' + h + ';drawFormat()">' + h + '分</button>').join('');
+  $('fmGap').innerHTML = GAPS.map(g => '<button class="chip' + (FMGAP === g ? ' on' : '') +
+    '" onclick="FMGAP=' + g + ';drawFormat()">' + g + '分</button>').join('');
+  $('fmRef').innerHTML = REFMODES.map(m => '<button class="chip' + (REFMODE === m.v ? ' on' : '') +
+    '" onclick="REFMODE=' + m.v + ';drawFormat()">' + m.label + '</button>').join('');
+  const mm = fmMatchMin(), iv = mm + FMGAP, ko = toMin($('fmKO').value) || 540;
+  const n = 8;
+  const list = [];
+  for(let i=0;i<n;i++) list.push(toHM(ko + iv*i));
+  $('fmCalc').innerHTML = '<b>1試合 ' + mm + '分</b>（' + FMHALF + '分ハーフ＋ハーフタイム' + (+$('fmHT').value||0) + '分）／' +
+    '<b>' + iv + '分まわし</b>（次の試合まで' + FMGAP + '分）<br>' +
+    '<span style="font-family:var(--mono);font-size:12px">KO ' + list.join('　') + ' …</span>';
+  if($('fmTitle') && !$('fmTitle').value) $('fmTitle').value = $('cfgTitle').value;
+  if($('fmVenue') && !$('fmVenue').value){const v = readVenues()[0]; if(v) $('fmVenue').value = v.name;}
+}
+function applyFormat(){
+  const mm = fmMatchMin(), iv = mm + FMGAP, ko = $('fmKO').value;
+  const rows = [...$('courtBody').querySelectorAll('tr')];
+  if(!rows.length){alert('先に面（コート）を1つ以上つくってください');return;}
+  rows.forEach(tr => {
+    tr.querySelector('.c-from').value = ko;
+    tr.querySelector('.c-match').value = mm;
+    tr.querySelector('.c-int').value = iv;
+  });
+  if($('fmTitle').value) $('cfgTitle').value = $('fmTitle').value;
+  if($('fmVenue').value) fmSetVenue($('fmVenue').value);
+  refreshHint();
+  const w = defaultWindow();
+  $('fmHint').textContent = '面を ' + ko + '〜 / 1試合' + mm + '分 / ' + iv + '分まわし にしました（チームの時間は ' + w.from + '〜' + w.to + '）';
+  fitAllTeamTimes();
+  drawFormat();
+}
+/* 確認なしで全チームの時間をそろえる（要項作成の流れの中で使う） */
+function fitAllTeamTimes(){
+  const w = defaultWindow();
+  [...$('teamBody').querySelectorAll('tr')].forEach(tr => {
+    tr.querySelector('.t-from').value = w.from; tr.querySelector('.t-to').value = w.to;
+  });
+  refreshHint();
+}
+
+/* ---------- 審判割 ----------
+   その時間に試合をしていないチームから、担当回数の少ない順に割り当てる */
+const REFROLES = ['主審','副審1','副審2','4審'];
+let REF = {};
+function assignRefs(r,teams){
+  REF = {};
+  if(!REFMODE) return;
+  const count = {};
+  teams.forEach(t => count[t.id] = 0);
+  const order = r.asg.map((m,i) => i).filter(i => r.asg[i]).sort((a,b) => r.cells[a].start - r.cells[b].start || a - b);
+  order.forEach(idx => {
+    const cell = r.cells[idx], m = r.asg[idx];
+    /* その時間に出ていない、かつ会場にいるはずのチーム */
+    const busy = {};
+    r.asg.forEach((x,k) => {
+      if(!x) return;
+      const c = r.cells[k];
+      if(c.start < cell.end && cell.start < c.end){busy[x.a.id] = 1; busy[x.b.id] = 1;}
+    });
+    const cand = teams.filter(t => !busy[t.id] && t.from <= cell.start && cell.start <= t.to);
+    cand.sort((x,y) => count[x.id] - count[y.id] || x.id - y.id);
+    const pick = cand.slice(0, REFMODE);
+    REF[idx] = pick.map(t => t.id);
+    pick.forEach(t => count[t.id]++);
+  });
+}
+function refNames(idx){
+  if(!REFMODE || !REF[idx] || !REF[idx].length) return '';
+  return REF[idx].map((id,i) => {
+    const t = ALL.teams.filter(x => x.id === id)[0];
+    return (REFMODE > 1 ? REFROLES[i] + ' ' : '') + (t ? t.name : '—');
+  }).join('／');
+}
+/* その時間に試合をしているチームが審判に入っていないか */
+function refBad(idx){
+  const r = ALL.plans[SEL].r, cell = r.cells[idx], bad = [];
+  (REF[idx] || []).forEach(id => {
+    if(id == null) return;
+    const playing = r.asg.some((m,k) => m && (m.a.id === id || m.b.id === id) &&
+      r.cells[k].start < cell.end && cell.start < r.cells[k].end);
+    if(playing){const t = ALL.teams.filter(x => x.id === id)[0]; bad.push(t ? t.name : '');}
+  });
+  return bad;
+}
+function refHTML(idx){
+  if(!REFMODE) return '';
+  const got = (REF[idx] || []).filter(x => x != null).length;
+  const s = refNames(idx), bad = refBad(idx);
+  let tail = '';
+  if(got === 0) tail = '<span style="color:var(--warn)">出せるチームがいません</span>';
+  else if(got < REFMODE) tail = esc(s) + '<span style="color:var(--mid)">／' + REFROLES.slice(got, REFMODE).join('・') + ' なし</span>';
+  else tail = esc(s);
+  if(bad.length) tail += '<span style="color:var(--warn)">（' + esc(bad.join('・')) + ' はこの時間に試合中）</span>';
+  return '<button class="refline" onclick="' + stop + 'openRef(' + idx + ')" title="押すと審判を変えられます">' +
+    '<span class="rlab">審判</span><span>' + tail + '</span><span class="rmark noprint">変更 ▾</span></button>';
+}
+let REFCELL = null;
+function openRef(idx){REFCELL = (REFCELL === idx ? null : idx); render();}
+function setRef(idx,i,val){
+  REF[idx] = REF[idx] || [];
+  REF[idx][i] = val === '' ? null : +val;
+  render();
+}
+function refFormHTML(idx){
+  const cell = ALL.plans[SEL].r.cells[idx];
+  let h = '<div class="addbox">';
+  for(let i=0;i<REFMODE;i++){
+    const cur = (REF[idx] || [])[i];
+    h += '<span class="ni">' + REFROLES[i] +
+      ' <select onchange="setRef(' + idx + ',' + i + ',this.value)"><option value="">－</option>' +
+      ALL.teams.map(t => {
+        const playing = ALL.plans[SEL].r.asg.some((m,k) => m && (m.a.id === t.id || m.b.id === t.id) &&
+          ALL.plans[SEL].r.cells[k].start < cell.end && cell.start < ALL.plans[SEL].r.cells[k].end);
+        return '<option value="' + t.id + '"' + (cur === t.id ? ' selected' : '') + '>' +
+          esc(t.name) + (playing ? '（この時間は試合中）' : '') + '</option>';
+      }).join('') + '</select></span>';
+  }
+  h += '<button onclick="' + stop + 'openRef(' + idx + ')">閉じる</button></div>';
+  return h;
+}
+/* 審判の担当回数（偏りの確認用） */
+function refCounts(){
+  const c = {};
+  ALL.teams.forEach(t => c[t.id] = 0);
+  Object.keys(REF).forEach(k => (REF[k] || []).forEach(id => {if(c[id] !== undefined) c[id]++;}));
+  return c;
+}
+
 /* ---------- 組む前のチェック ---------- */
 function gather(){
   const teams = readTeams(), courts = readCourts();
@@ -857,6 +1001,7 @@ function run(reseed){
     if(A.totalScore > B.totalScore) bi = i;
   });
   ALL = {plans:plans, cfg:cfg, teams:teams, courts:courts};
+  assignRefs(plans[bi].r, teams);
   $('out').style.display = 'block';
   pick(bi);
   $('out').scrollIntoView({behavior:'smooth'});
@@ -910,12 +1055,17 @@ function diagnoseOf(r,teams,courts,cfg){
   });
 }
 function pick(i){
-  SEL = i; SELCELL = null; ADDCELL = null; EDITSLOT = null;
+  SEL = i; SELCELL = null; ADDCELL = null; EDITSLOT = null; REFCELL = null;
+  /* 案が変わればカードも変わるので審判を割り当て直す。
+     手で直した審判は、案を変えない限りそのまま残る */
+  assignRefs(ALL.plans[i].r, ALL.teams);
   $('planbar').innerHTML =
     ALL.plans.map((x,k) => '<button class="pbtn' + (k === i ? ' on' : '') + '" onclick="pick(' + k + ')" title="' + esc(x.desc) + '">' + esc(x.name) + '</button>').join('') +
-    '<button class="pbtn re" onclick="run(true)">↻ 別パターン</button>';
+    '<button class="pbtn re" onclick="run(true)">↻ 別パターン</button>' +
+    (REFMODE ? '<button class="pbtn" onclick="reassignRefs()">審判を割り当て直す</button>' : '');
   render();
 }
+function reassignRefs(){assignRefs(ALL.plans[SEL].r, ALL.teams); render();}
 function recount(){
   const p = ALL.plans[SEL], r = p.r;
   ALL.teams.forEach(t => r.played[t.id] = 0);
@@ -971,10 +1121,15 @@ function render(){
   drawDiag(d);
   const dt = $('cfgDate').value, ds = dt ? (+dt.slice(5,7)) + '月' + (+dt.slice(8,10)) + '日 ' : '';
   const vs = readVenues();
-  $('head').innerHTML = '<div style="font-size:19px;font-weight:800">' + ds + esc($('cfgTitle').value) + ' スケジュール</div>' +
+  const open = $('cfgOpen') ? $('cfgOpen').value : '';
+  const ko = Math.min.apply(null, courts.map(c => c.from));
+  $('head').innerHTML = '<div style="font-size:19px;font-weight:800">' + ds + esc($('cfgTitle').value) + '</div>' +
+    '<div style="font-size:13px;margin-top:6px">' +
+    '<b>会場</b> ' + vs.map(v => esc(v.name)).join('・') +
+    (open ? '　<b>開門</b> ' + esc(open) : '') + '　<b>1試合目KO</b> ' + toHM(ko) + '</div>' +
     '<div style="color:var(--dim);font-size:12.5px;margin-top:4px">' +
     courts.map(c => '<b>' + esc(c.venueName) + ' ' + esc(c.name) + '</b> ' + toHM(c.from) + '〜' + toHM(c.to) +
-      '／' + c.match + '分1本・' + c.interval + '分まわし' + (c.cats ? '（' + esc(c.cats) + '）' : '')).join('<br>') + '</div>';
+      '／1試合' + c.match + '分・' + c.interval + '分まわし' + (c.cats ? '（' + esc(c.cats) + '）' : '')).join('<br>') + '</div>';
 
   NO = {}; let n = 0;
   r.asg.forEach((m,idx) => {if(m){n++; NO[idx] = n;}});
@@ -1025,7 +1180,19 @@ function render(){
   const note = $('cfgNote').value.trim();
   /* チームごとの「その他」は生成に効かないので、必ず紙に出す */
   const tn = teams.filter(t => t.note).map(t => esc(t.name) + '：' + esc(t.note));
-  $('pnote').innerHTML =
+  /* 審判の担当回数（偏りの確認用） */
+  let rc = '';
+  if(REFMODE){
+    const c = refCounts();
+    rc = '<div class="vname">審判の担当回数</div><p style="font-size:13px">' +
+      teams.map(t => esc(t.name) + ' <b>' + c[t.id] + '回</b>').join('　／　') + '</p>';
+  }
+  /* 会場注意事項 */
+  const notes = [['開門時間について', $('cfgOpenNote')], ['駐車場について', $('cfgParkNote')], ['その他', $('cfgOtherNote')]]
+    .filter(x => x[1] && x[1].value.trim());
+  const nh = notes.length ? '<div class="vname">会場からのお願い</div>' +
+    notes.map(x => '<p style="font-size:13px;margin:4px 0"><b>' + x[0] + '</b><br>' + esc(x[1].value.trim()).replace(/\n/g,'<br>') + '</p>').join('') : '';
+  $('pnote').innerHTML = rc + nh +
     (note ? '<div class="ok" style="margin-top:12px">' + esc(note).replace(/／/g,'<br>') + '</div>' : '') +
     (tn.length ? '<div class="ok" style="margin-top:12px"><b>チームからの連絡</b><br>' + tn.join('<br>') + '</div>' : '');
 }
@@ -1091,8 +1258,9 @@ function cellHTML(m,idx,courts,cell){
   if(!m) return '<td class="blank"' + swapAttrs(idx) + '>（空き）' +
     '<button class="addbtn" onclick="' + stop + 'addAt(' + idx + ')">＋ 試合を入れる</button></td>';
   const nm = (w,t) => '<button class="tname" onclick="' + stop + 'editSlot(' + idx + ',\'' + w + '\')" title="押すと他のチームに変えられます">' + esc(t.name) + '</button>';
+  const ref = REFCELL === idx ? refFormHTML(idx) : refHTML(idx);
   return '<td class="card"' + swapAttrs(idx) + '><span class="n">' + NO[idx] + '</span>' +
-    nm('a',m.a) + '<span class="vs">vs</span>' + nm('b',m.b) + flag + '</td>';
+    nm('a',m.a) + '<span class="vs">vs</span>' + nm('b',m.b) + flag + ref + '</td>';
 }
 function badOf(idx){
   const d = ALL.plans[SEL].d;
@@ -1215,7 +1383,7 @@ function saveJSON(){
       from:c.from, to:c.to, match:c.match, interval:c.interval, cats:c.cats})),
     teams:readTeams(),
     pairs:Object.keys(PAIROV).map(k => {const p = JSON.parse(k); return [p[0],p[1],PAIROV[k]];})};
-  ['cfgDate','cfgTitle','cfgNote','cfgFormat','cfgCat','cfgBack','cfgSame','cfgClub','cfgRank','cfgMix'].forEach(k => o.cfg[k] = $(k).value);
+  ['cfgDate','cfgTitle','cfgNote','cfgFormat','cfgCat','cfgBack','cfgSame','cfgClub','cfgRank','cfgMix','cfgOpen','cfgOpenNote','cfgParkNote','cfgOtherNote'].forEach(k => o.cfg[k] = $(k).value);
   const vs = readVenues();
   Object.keys(TRAVEL).forEach(k => {
     const p = k.split('|');
@@ -1278,3 +1446,4 @@ addCourt({name:'Bコート', venue:1, from:'09:00', to:'16:30', match:50, interv
   addTeam({name:d[0], cat:d[1], players:d[2], from:d[3], to:d[4], target:d[5]}));
 pickTpl('festival');
 drawTpl();
+drawFormat();

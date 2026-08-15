@@ -171,6 +171,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 .wizQ{font-size:17px;font-weight:800;margin-bottom:12px}
 .wizNav{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
   margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+/* 審判 */
+/* 審判の行そのものを押せるようにして、小さなボタンを作らない */
+.refline{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin-top:4px;padding:6px 0 2px;
+  font-family:var(--sans);font-size:13px;color:var(--dim);font-weight:400;line-height:1.5;text-align:left;
+  background:none;border:none;border-top:1px dashed var(--line);border-radius:0;cursor:pointer}
+.refline:hover{color:var(--turf)}
+.refline .rlab{font-weight:700;flex:0 0 auto}
+.refline .rmark{margin-left:auto;font-size:11px;color:#A9B5AF;flex:0 0 auto}
+.refline:hover .rmark{color:var(--turf)}
 /* チーム別タイムライン */
 .gantt{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center}
 .gname{white-space:nowrap;font-weight:600;font-size:13px}
@@ -196,6 +205,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
   .sched td{border:1px solid #888}
   .sched td.time,.sched tr.home td.card,.sched td.blank{background:#fff!important}
   .tname{border-bottom:none;padding:0;font-size:inherit;color:#000}
+  .refline{min-height:0;padding:2px 0 0;font-size:9.5pt;color:#000;border-top:1px solid #CCC}
   .flag,.addbtn{display:none!important}
 }
 </style>
@@ -365,6 +375,33 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
   <div id="leagueBox"></div>
 </section>
 
+<section class="noprint">
+  <h2>大会要項をつくる<span>答えると時間割と審判割まで作ります。あとから直せます</span></h2>
+  <div class="noteRow"><label>大会名</label>
+    <input id="fmTitle" style="max-width:300px" oninput="$('cfgTitle').value=this.value;autoSave()"></div>
+  <div class="noteRow"><label>会場</label>
+    <input id="fmVenue" style="max-width:300px" oninput="fmSetVenue(this.value)"></div>
+  <div class="noteRow"><label>開門時間</label>
+    <input type="time" step="900" id="cfgOpen" value="08:00" style="width:130px">
+    <label style="min-width:110px;margin-left:10px">1試合目のKO</label>
+    <input type="time" step="900" id="fmKO" value="09:00" style="width:130px" onchange="drawFormat()"></div>
+  <div class="noteRow"><label>試合時間</label><span id="fmHalf"></span>
+    <span class="ni">ハーフタイム <input type="number" id="fmHT" value="5" min="0" max="20" style="width:70px" onchange="drawFormat()">分</span></div>
+  <div class="noteRow"><label>次の試合まで</label><span id="fmGap"></span></div>
+  <div class="noteRow"><label>審判割</label><span id="fmRef"></span></div>
+  <div id="fmCalc" class="ok" style="margin:10px 0"></div>
+  <div class="noteRow" style="align-items:flex-start"><label>開門時間について</label>
+    <textarea id="cfgOpenNote" rows="2" style="flex:1;min-width:220px" placeholder="例）8:00開門です。それより早い到着はご遠慮ください"></textarea></div>
+  <div class="noteRow" style="align-items:flex-start"><label>駐車場について</label>
+    <textarea id="cfgParkNote" rows="2" style="flex:1;min-width:220px" placeholder="例）第2グラウンド側の駐車場をご利用ください。1チーム3台まで"></textarea></div>
+  <div class="noteRow" style="align-items:flex-start"><label>その他</label>
+    <textarea id="cfgOtherNote" rows="2" style="flex:1;min-width:220px" placeholder="例）ゴミは各チームでお持ち帰りください／更衣室はありません"></textarea></div>
+  <div class="row-actions">
+    <button class="btn" onclick="applyFormat()">この内容で時間割を作る</button>
+    <span class="hint" id="fmHint" style="margin:0"></span>
+  </div>
+</section>
+
 <section class="noprint" id="preSec">
   <h2>組む前のチェック<span>物理的に組めるかどうかを先に確かめます</span></h2>
   <div id="preBox"></div>
@@ -408,8 +445,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--turf);outline-of
 
 </div>
 
-<script src="score.js?v=20260812h"></script>
-<script src="app.js?v=20260812h"></script>
-<script src="wizard.js?v=20260812h"></script>
+<script src="score.js?v=20260812k"></script>
+<script src="app.js?v=20260812k"></script>
+<script src="wizard.js?v=20260812k"></script>
 </body>
 </html>

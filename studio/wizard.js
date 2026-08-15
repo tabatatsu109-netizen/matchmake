@@ -13,7 +13,7 @@ function snapshot(){
       from:c.from, to:c.to, match:c.match, interval:c.interval, cats:c.cats})),
     teams:readTeams(),
     pairs:Object.keys(PAIROV).map(k => {const p = JSON.parse(k); return [p[0],p[1],PAIROV[k]];})};
-  ['cfgDate','cfgTitle','cfgNote','cfgFormat','cfgCat','cfgBack','cfgSame','cfgClub','cfgRank','cfgMix']
+  ['cfgDate','cfgTitle','cfgNote','cfgFormat','cfgCat','cfgBack','cfgSame','cfgClub','cfgRank','cfgMix','cfgOpen','cfgOpenNote','cfgParkNote','cfgOtherNote']
     .forEach(k => {if($(k)) o.cfg[k] = $(k).value;});
   const vs = readVenues();
   Object.keys(TRAVEL).forEach(k => {
